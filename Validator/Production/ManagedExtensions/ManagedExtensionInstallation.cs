@@ -11,10 +11,10 @@ namespace Utils.Framework.ManagedExtensions
     {
         internal readonly byte[] ManifestBytes;
         internal readonly Dictionary<string,byte[]> Content;
-        public ManagedExtensionInstallPackage(string sourceId,string endpointHash,string snapshotId,string catalogHash,
+        public ManagedExtensionInstallPackage(string sourceId,string identityHash,string snapshotId,string catalogHash,
             string artifactHash,byte[] manifest,IReadOnlyDictionary<string,byte[]> files)
         {
-            SourceId=ManagedExtensionJson.Identifier(sourceId); RepositoryEndpointSha256=ManagedExtensionJson.Hex(endpointHash,64);
+            SourceId=ManagedExtensionJson.Identifier(sourceId); RepositoryIdentitySha256=ManagedExtensionJson.Hex(identityHash,64);
             CatalogSnapshotId=ManagedExtensionJson.Hex(snapshotId,40); CatalogSha256=ManagedExtensionJson.Hex(catalogHash,64);
             ArtifactSha256=ManagedExtensionJson.Hex(artifactHash,64);
             if(manifest==null || manifest.Length==0 || manifest.Length>ManagedExtensionManifestReader.MaxManifestBytes) throw ManagedExtensionJson.Error("DocumentLimit");
@@ -34,7 +34,7 @@ namespace Utils.Framework.ManagedExtensions
             ExpandedBytes=length;
         }
         public string SourceId { get; }
-        public string RepositoryEndpointSha256 { get; }
+        public string RepositoryIdentitySha256 { get; }
         public string CatalogSnapshotId { get; }
         public string CatalogSha256 { get; }
         public string ArtifactSha256 { get; }
@@ -58,7 +58,7 @@ namespace Utils.Framework.ManagedExtensions
             }
             if(items.Count==0) throw ManagedExtensionJson.Error("ManagedInstallBatchLimit");
             var first=items[0];
-            if(items.Any(p=>p.SourceId!=first.SourceId || p.RepositoryEndpointSha256!=first.RepositoryEndpointSha256 || p.CatalogSnapshotId!=first.CatalogSnapshotId || p.CatalogSha256!=first.CatalogSha256))
+            if(items.Any(p=>p.SourceId!=first.SourceId || p.RepositoryIdentitySha256!=first.RepositoryIdentitySha256 || p.CatalogSnapshotId!=first.CatalogSnapshotId || p.CatalogSha256!=first.CatalogSha256))
                 throw ManagedExtensionJson.Error("ManagedInstallProvenanceMismatch");
             if(items.Select(p=>p.Manifest.PackageId).Distinct(StringComparer.Ordinal).Count()!=items.Count) throw ManagedExtensionJson.Error("ManagedInstallPackageConflict");
             Packages=items.AsReadOnly();

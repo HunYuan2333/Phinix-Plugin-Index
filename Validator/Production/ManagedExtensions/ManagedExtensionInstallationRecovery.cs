@@ -226,7 +226,7 @@ namespace Utils.Framework.ManagedExtensions
         }
         private static byte[] SerializeReceipt(ManagedExtensionPackageSnapshot row,IEnumerable<ManagedExtensionFile> files)
         {
-            return Encoding.UTF8.GetBytes("{\"schemaVersion\":1,\"sourceId\":\""+row.SourceId+"\",\"repositoryEndpointSha256\":\""+row.RepositoryEndpointSha256+
+            return Encoding.UTF8.GetBytes("{\"schemaVersion\":1,\"sourceId\":\""+row.SourceId+"\",\"repositoryIdentitySha256\":\""+row.RepositoryIdentitySha256+
                 "\",\"packageId\":\""+row.PackageId+"\",\"version\":\""+row.Version+"\",\"manifestSha256\":\""+row.ManifestSha256+"\",\"catalogSnapshotId\":\""+row.CatalogSnapshotId+
                 "\",\"catalogSha256\":\""+row.CatalogSha256+"\",\"artifactSha256\":\""+row.ArtifactSha256+"\",\"installationTransactionId\":\""+row.InstallationTransactionId+"\",\"files\":["+
                 string.Join(",",files.OrderBy(f=>f.Path,StringComparer.Ordinal).Select(f=>"{\"path\":\""+f.Path+"\",\"length\":"+f.Length.ToString(System.Globalization.CultureInfo.InvariantCulture)+",\"sha256\":\""+f.Sha256+"\"}"))+"]}");
@@ -249,14 +249,14 @@ namespace Utils.Framework.ManagedExtensions
                 var r=ManagedExtensionInventoryReader.ReadReceipt(item.ReceiptBytes); item.Receipt=r;
                 var manifest=ManagedExtensionManifestReader.Read(item.ManifestBytes);
                 if(r.TransactionId!=j.Operation || r.ManifestHash!=ManagedExtensionPaths.Hash(item.ManifestBytes) || r.PackageId!=manifest.PackageId || r.Version!=manifest.Version.ToString()) throw Error("InstallJournalIdentityMismatch");
-                item.Row=new ManagedExtensionPackageSnapshot(ManagedExtensionPaths.PackageKey(r.SourceId,r.PackageId),r.SourceId,r.EndpointHash,r.PackageId,r.Version,r.ManifestHash,r.SnapshotId,r.CatalogHash,r.ArtifactHash,r.TransactionId,j.Operation,manifest,ManagedExtensionDesiredState.Enabled,ManagedExtensionContentState.ContentVerified,null);
+                item.Row=new ManagedExtensionPackageSnapshot(ManagedExtensionPaths.PackageKey(r.SourceId,r.PackageId),r.SourceId,r.IdentityHash,r.PackageId,r.Version,r.ManifestHash,r.SnapshotId,r.CatalogHash,r.ArtifactHash,r.TransactionId,j.Operation,manifest,ManagedExtensionDesiredState.Enabled,ManagedExtensionContentState.ContentVerified,null);
                 var expected=manifest.Assemblies.Select(a=>a.File).Concat(manifest.Resources).Concat(new[]{new ManagedExtensionFile("manifest.json",item.ManifestBytes.Length,r.ManifestHash)}).ToList();
                 if(r.Files.Count!=expected.Count || expected.Any(e=>!r.Files.Any(v=>v.Path==e.Path && v.Length==e.Length && v.Sha256==e.Sha256)) || !StateBytes(item.Row).SequenceEqual(item.StateBytes)) throw Error("InstallJournalFilesMismatch");
                 j.Items.Add(item);
             }
             if(j.Items.Count==0 || j.Items.Select(i=>i.Row.RecordKey).Distinct().Count()!=j.Items.Count || j.Items.Sum(i=>i.Receipt.Files.Sum(v=>v.Length))>ManagedExtensionManifestReader.MaxExpandedBytes) throw Error("InstallJournalLimit");
             var first=j.Items[0].Row;
-            if(j.Items.Any(i=>i.Row.SourceId!=first.SourceId || i.Row.RepositoryEndpointSha256!=first.RepositoryEndpointSha256 || i.Row.CatalogSnapshotId!=first.CatalogSnapshotId || i.Row.CatalogSha256!=first.CatalogSha256)) throw Error("InstallJournalIdentityMismatch");
+            if(j.Items.Any(i=>i.Row.SourceId!=first.SourceId || i.Row.RepositoryIdentitySha256!=first.RepositoryIdentitySha256 || i.Row.CatalogSnapshotId!=first.CatalogSnapshotId || i.Row.CatalogSha256!=first.CatalogSha256)) throw Error("InstallJournalIdentityMismatch");
             if(!Serialize(j).SequenceEqual(bytes)) throw Error("InstallJournalNotCanonical"); return j;
         }
         private static byte[] Decode(Dictionary<string,XElement> f,string key,int maximum)

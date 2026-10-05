@@ -6,11 +6,11 @@
 
 ## 当前 A1：申请与静态报告
 
-作者在 Issues → New issue → Plugin submission 提交固定候选。复制 [示例](examples/managed-submission.json)，将全部字段换成自己的包，包括公开仓库、作者/仓库 ID、源码提交、正式 Release/资产 ID、manifest、大小和摘要。示例是真实 Playtest 1.2.1 的测试输入，不是已经批准的官方条目。申请标题以 `[Plugin]` 开头，表单生成 `Candidate JSON` 段。
+作者在 Issues → New issue → Plugin submission 提交固定候选。复制 [示例](examples/managed-submission.json)，将全部字段换成自己的包，包括公开仓库、作者/仓库 ID、源码提交、正式 Release/资产 ID、manifest、大小和摘要。示例是真实 Playtest 1.3.0 的测试输入，不是已经批准的官方条目。申请标题以 `[Plugin]` 开头，表单生成 `Candidate JSON` 段。
 
 机器人在申请新建、编辑或重新打开时检查：
 
-1. 用与客户端相同的严格 schema-v2 目录读取器验证候选声明。
+1. 用与客户端相同的严格 schema-v3 目录读取器验证候选声明。
 2. 核对公开仓库/作者数字身份、正式非预发布 Release、固定 tag 对应的源码 commit、公开 C# 源码树、资产身份/归属/大小。
 3. 只从 GitHub API 和指定资产 CDN 下载，计算真实 SHA-256；用生产 ZIP/PE/CLR 元数据校验器检查清单、文件路径/集合/长度/摘要、目标框架、程序集及模块入口声明。作者 DLL 不被加载或执行。
 4. 输出 `candidate.json`、`static.json`、`report.json`，绑定规范化候选摘要及申请正文摘要/更新时间。检查及回报前再次核对申请；变化则停止旧报告。
@@ -48,7 +48,7 @@ gh run view RUN_ID --repo HunYuan2333/Phinix-Plugin-Index --log-failed
 
 A2 的机器人 PR 创建和 A4 发布需要新增最小写权限；到该批次用 CLI 配置并验证，A1 不提前赋予内容写权限。分支/审核规则与正常版本自动处理要一起设计，不能让强制人工批准所有更新与“正常版本自动更新”互相冲突。可信校验/发布脚本变动仍需维护者审查。
 
-A4 在配置明确前不修改 Cloudflare 的来源、正式默认源或 R2 绑定。不把工作流 artifact 当作永久下载地址。当前目录为 schema v2；changelog 增加字段时必须同步发布工具和客户端严格格式支持。
+A4 在配置明确前不修改 Cloudflare 的来源、正式默认源或 R2 绑定。不把工作流 artifact 当作永久下载地址。当前目录为 schema v3；changelog 增加字段时必须同步发布工具和客户端严格格式支持。
 
 GitHub App 放到跨仓库触发、独立机器人名称或更细安装授权有实际需求时再考虑。若需要，可另行配置 App ID/私钥和仅安装索引仓库；不复用 Cloudflare 回源 token，不需要作者交出 token。AI 源码审查是之后的辅助阶段，本轮不调用模型、不增加模型密钥或费用。
 

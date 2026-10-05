@@ -199,7 +199,7 @@ def validator(args, command):
 
 
 def inspect(args, package, out, api):
-    catalog = {'schemaVersion': 2, 'sourceId': SOURCE, 'snapshotId': package['artifact']['sourceCommit'], 'packages': [package]}
+    catalog = {'schemaVersion': 3, 'sourceId': SOURCE, 'snapshotId': package['artifact']['sourceCommit'], 'packages': [package]}
     catalog_path = out / 'catalog.json'; catalog_path.write_bytes(encode(catalog))
     validator(args, ['catalog', SOURCE, str(catalog_path)])
     api.verify_origin(package['artifact'])

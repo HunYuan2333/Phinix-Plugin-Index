@@ -50,7 +50,7 @@ namespace Utils.Framework.ManagedExtensions
                     token.ThrowIfCancellationRequested(); var journal = Parse(ManagedExtensionInventoryReader.Bytes(path, 4 * 1024 * 1024, token));
                     if (Path.GetFileName(path) != "rm-" + journal.OperationId + ".json") throw ManagedExtensionJson.Error("RemovalJournalIdentityMismatch");
                     // A pending journal is authoritative intent, but reverse ownership is rechecked each startup.
-                    var row=new ManagedExtensionPackageSnapshot(ManagedExtensionPaths.PackageKey(journal.SourceId,journal.PackageId),journal.SourceId,journal.Receipt.EndpointHash,journal.PackageId,
+                    var row=new ManagedExtensionPackageSnapshot(ManagedExtensionPaths.PackageKey(journal.SourceId,journal.PackageId),journal.SourceId,journal.Receipt.IdentityHash,journal.PackageId,
                         journal.Receipt.Version,journal.Receipt.ManifestHash,journal.Receipt.SnapshotId,journal.Receipt.CatalogHash,journal.Receipt.ArtifactHash,journal.Receipt.TransactionId,journal.OperationId,
                         journal.Manifest,ManagedExtensionDesiredState.PendingRemoval,ManagedExtensionContentState.ContentVerified,null);
                     Emit(audit,"RemovalReplayStarted",row);

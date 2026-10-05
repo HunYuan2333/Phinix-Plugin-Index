@@ -15,17 +15,21 @@ namespace Phinix.PluginStore
     {
         internal ManagedStoreRecord(string id, string name, string author, string license, string summary,
             IEnumerable<string> tags, string state, ManagedExtensionManifest manifest, string declarationHash,
-            GitHubArtifact artifact, string modId, string workshopId, IEnumerable<string> gameVersions)
+            GitHubArtifact artifact, string modId, string workshopId, IEnumerable<string> gameVersions, ExtensionDisplayLocalization localization=null)
         {
             Id=id; Name=name; Author=author; License=license; Summary=summary; Tags=StoreCollections.Freeze(tags); State=state;
             Manifest=manifest; DeclarationHash=declarationHash; Artifact=artifact; RimWorldPackageId=modId; WorkshopId=workshopId;
-            RimWorldVersions=StoreCollections.Freeze(gameVersions);
+            RimWorldVersions=StoreCollections.Freeze(gameVersions); Localization=localization;
         }
         public string Id { get; }
         public string Name { get; }
         public string Author { get; }
         public string License { get; }
         public string Summary { get; }
+        public ExtensionDisplayLocalization Localization { get; }
+        public string DisplayName(string locale) => Localization?.Resolve("name",locale)??Name;
+        public string DisplaySummary(string locale) => Localization?.Resolve("summary",locale)??Summary;
+        public string DisplayChangelog(string locale) => Localization?.Resolve("changelog",locale);
         public ReadOnlyCollection<string> Tags { get; }
         public string State { get; }
         public ManagedExtensionManifest Manifest { get; }
@@ -50,7 +54,7 @@ namespace Phinix.PluginStore
 
     internal static class ManagedStoreCatalogReader
     {
-        internal const int SchemaVersion=2;
+        internal const int SchemaVersion=3;
         internal const int MaxSummaryCharacters=1024;
         internal static ManagedStoreCatalogSnapshot Read(byte[] bytes, string expectedSource)
         {
@@ -69,10 +73,9 @@ namespace Phinix.PluginStore
         private static ManagedStoreRecord ReadPackage(XElement node)
         {
             var f=CatalogReader.Object(node,"package","id","name","author","license","summary","tags","state","channel","management",
-                "manifest","artifact","rimWorldPackageId","workshopId","rimWorldVersions");
-            string id=CatalogReader.Identifier(Get(f,"id"),"id"), name=CatalogReader.Text(Get(f,"name"),"name",160);
+                "manifest","artifact","rimWorldPackageId","workshopId","rimWorldVersions","localization");
+            string id=CatalogReader.Identifier(Get(f,"id"),"id");
             string author=CatalogReader.Text(Get(f,"author"),"author",160), license=CatalogReader.Text(Get(f,"license"),"license",128);
-            string summary=CatalogReader.Text(Get(f,"summary"),"summary",MaxSummaryCharacters);
             var tags=CatalogReader.Array(Get(f,"tags"),"tags",8).Select(t=>CatalogReader.Identifier(t,"tag")).ToList();
             if(tags.Any(t=>t.Length>32) || tags.Distinct(StringComparer.Ordinal).Count()!=tags.Count) throw Error("InvalidTags");
             string state=CatalogReader.Choice(Get(f,"state"),"state","active","withdrawn","unmaintained");
@@ -81,24 +84,28 @@ namespace Phinix.PluginStore
             if(channel=="steam-workshop")
             {
                 if(management!="rimworld-mod") throw Error("UnsupportedManagement");
-                CatalogReader.Forbid(f,"manifest","artifact");
+                CatalogReader.Forbid(f,"manifest","artifact","localization");
+                string name=CatalogReader.Text(Get(f,"name"),"name",160), summary=CatalogReader.Text(Get(f,"summary"),"summary",MaxSummaryCharacters);
                 var versions=CatalogReader.Array(Get(f,"rimWorldVersions"),"rimWorldVersions",16).Select(v=>CatalogReader.Text(v,"rimWorldVersion",32)).ToList();
                 if(versions.Count==0 || versions.Distinct().Count()!=versions.Count || versions.Any(v=>!System.Text.RegularExpressions.Regex.IsMatch(v,@"\A(?:0|[1-9][0-9]*)\.(?:0|[1-9][0-9]*)\z"))) throw Error("InvalidCompatibility");
                 return new ManagedStoreRecord(id,name,author,license,summary,tags,state,null,null,null,
                     CatalogReader.Identifier(Get(f,"rimWorldPackageId"),"rimWorldPackageId"),CatalogReader.PositiveId(Get(f,"workshopId"),"workshopId"),versions);
             }
             if(management!=ManagedExtensionManifest.Management) throw Error("UnsupportedManagement");
-            CatalogReader.Forbid(f,"rimWorldPackageId","workshopId","rimWorldVersions");
+            CatalogReader.Forbid(f,"rimWorldPackageId","workshopId","rimWorldVersions","name","summary");
+            ExtensionDisplayLocalization localization;
+            try { localization=ExtensionDisplayLocalization.Read(Get(f,"localization")); }
+            catch(ManagedExtensionValidationException ex) { throw new StoreValidationException(ex.Code,"Invalid catalog localization.",ex); }
             var declared=Get(f,"manifest");
             byte[] manifestBytes=JsonBytes(declared,false);
             ManagedExtensionManifest manifest;
             try { manifest=ManagedExtensionManifestReader.Read(manifestBytes); }
             catch(ManagedExtensionValidationException ex) { throw new StoreValidationException(ex.Code,"Invalid managed catalog manifest.",ex); }
-            if(manifest.PackageId!=id || manifest.Name!=name) throw Error("ManifestMismatch");
+            if(manifest.PackageId!=id) throw Error("ManifestMismatch");
             PackageVersion version;
             if(!PackageVersion.TryParse(manifest.Version.ToString(),out version)) throw Error("InvalidVersion");
             var artifact=CatalogReader.ReadArtifact(Get(f,"artifact"),version,true);
-            return new ManagedStoreRecord(id,name,author,license,summary,tags,state,manifest,CatalogReader.Hash(JsonBytes(declared,true)),artifact,null,null,manifest.Compatibility.RimWorldVersions);
+            return new ManagedStoreRecord(id,manifest.Name,author,license,localization.Resolve("summary","en"),tags,state,manifest,CatalogReader.Hash(JsonBytes(declared,true)),artifact,null,null,manifest.Compatibility.RimWorldVersions,localization);
         }
 
         internal static ManagedExtensionManifest VerifyManifest(ManagedStoreRecord expected, byte[] bytes)

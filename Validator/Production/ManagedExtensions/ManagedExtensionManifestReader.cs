@@ -24,7 +24,7 @@ namespace Utils.Framework.ManagedExtensions
         {
             var f = ManagedExtensionJson.Object(ManagedExtensionJson.Read(bytes, MaxManifestBytes),
                 "schemaVersion", "management", "packageId", "name", "version", "targetFramework", "compatibility",
-                "dependencies", "modules", "assemblies", "resources", "externalMods");
+                "dependencies", "modules", "assemblies", "resources", "externalMods", "localization");
             if (ManagedExtensionJson.Integer(Get(f, "schemaVersion"), 1, int.MaxValue) != ManagedExtensionManifest.SchemaVersion)
                 throw ManagedExtensionJson.Error("UnsupportedSchema");
             if (ManagedExtensionJson.Text(Get(f, "management"), 32) != ManagedExtensionManifest.Management ||
@@ -132,7 +132,8 @@ namespace Utils.Framework.ManagedExtensions
                 }
                 externalMods.Add(new ManagedExtensionExternalMod(modId, workshopId));
             }
-            return new ManagedExtensionManifest(id, name, version, compatibility, dependencies, modules, assemblies, resources, externalMods);
+            var localization = f.ContainsKey("localization") ? ExtensionLocalizationDeclaration.Read(f["localization"], resources) : null;
+            return new ManagedExtensionManifest(id, name, version, compatibility, dependencies, modules, assemblies, resources, externalMods, localization);
         }
 
         internal static XElement Get(Dictionary<string, XElement> fields, string name) { return ManagedExtensionJson.Required(fields, name); }
