@@ -1,63 +1,43 @@
-# GitHub index bot operations
+# GitHub plugin submission and publication
 
-2026-10-05: Normal admission now uses one maintainer `plugin-approved` Issue label, automatic evidence PR merge, automatic publication and closing. Failures receive `plugin-error`; static reports provide corrective guidance to the submitter. See [current operations](ControlledPublication.md). Older future-tense A2/A4 notes below are historical; A3 remains pending.
+[中文](GitHubBotGuide.zh-CN.md). Authors publish their source and a fixed managed DLL ZIP in their own public repository, then submit metadata to the official index. GitHub Actions performs checks and publication; no author token or separate bot server is needed.
 
+## Submit a plugin
 
-[中文](GitHubBotGuide.zh-CN.md). 2026-10-05. Repository: [HunYuan2333/Phinix-Plugin-Index](https://github.com/HunYuan2333/Phinix-Plugin-Index).
+Use Issues → New issue → Plugin submission. Copy [the current candidate example](examples/managed-submission.json), replacing every identity, commit, version, asset ID, length and digest with your own release values. The schema-v3 catalog uses localized name, summary and changelog; language JSON for the plugin UI is included and hashed inside the ZIP.
 
-Use GitHub Actions with `github-actions[bot]`. No server, GitHub App or new personal token is needed initially. Workflows use the repository-provided `GITHUB_TOKEN`, defaulting to read access; only the report job requests `issues: write`. The Cloudflare read-only origin token is separate and is never reused for index writes.
+The working example is [Phinix Example Plugin](https://github.com/HunYuan2333/Phinix-Example-Plugin), with [source and release v1.0.0](https://github.com/HunYuan2333/Phinix-Example-Plugin/releases/tag/v1.0.0). Its normal admission is demonstrated by [Issue #15](https://github.com/HunYuan2333/Phinix-Plugin-Index/issues/15), [evidence PR #16](https://github.com/HunYuan2333/Phinix-Plugin-Index/pull/16), and the [successful publication](https://github.com/HunYuan2333/Phinix-Plugin-Index/actions/runs/37335979507).
 
-## A1: submission and static reports
+New, edited or reopened applications receive a static report. Checks cover strict metadata, public repository/owner identities, fixed tag/source commit, published release/asset identity, size, SHA-256, ZIP layout, PE references, manifest and resource declarations. Author DLLs are never loaded or executed. Correct invalid submissions using the report and update the Issue; a changed candidate invalidates its earlier approval.
 
-Authors use Issues → New issue → Plugin submission. Copy [the example](examples/managed-submission.json) and replace every field with their fixed release, including public repository/owner IDs, source commit, published release/asset IDs, manifest, size and hashes. The real Playtest 1.3.0 example is test input, an accepted official entry also used as test input. Titles start with `[Plugin]`; the form produces a `Candidate JSON` section.
+## Review and publish
 
-New, edited or reopened submissions trigger strict client-equivalent schema-v3 validation, GitHub public repository/owner identities, non-draft/non-prerelease release, tag-to-commit proof, public C# source tree, asset membership/identity/size and actual SHA-256. Downloads use only GitHub API and the allowed asset CDN. Production ZIP/PE validation checks layout, manifest/content digests, target framework, assembly and module declarations without loading or executing plugin code.
+1. Review the exact candidate and report; static success does not prove source/binary correspondence or in-game behavior.
+2. Add `plugin-approved` to approve that candidate. Only authorized maintainers can approve. Close an unapproved Issue to reject it.
+3. Trusted automation rechecks the candidate, merges a metadata-only evidence PR and publishes the catalog. No second human approval is required.
+4. Successful publication removes `plugin-error` and closes the Issue. Failures leave it open with `plugin-error` and diagnostic guidance. See [publication operations and recovery](ControlledPublication.md).
 
-Artifacts contain canonical `candidate.json`, `static.json` and `report.json`, binding the candidate fingerprint and issue body hash/update time. The issue is rechecked before completion and reporting; changed submissions stop stale reports. The bot posts pass/fail and fingerprint on an unchanged issue. Artifacts expire after 14 days; downloaded ZIPs are deleted at check completion.
+The official player source is `phinix.official`, using GitHub direct or CF acceleration for the same protocol, identity and immutable bytes. Playtest stays outside the player catalog; its historical approved records and regression fixture remain for audit. Automatic monitoring of later author releases (A3) is not enabled yet; submit a new fixed candidate for each new version currently.
 
-**A1 does not create approvals or metadata PRs, collect/monitor new versions or publish stable.** Static validation is not code safety, source/binary correspondence or in-game compatibility. Reports list actual CLR references for later review; dependency closure and approved update scope follow in later batches. The official index contains the accepted Playtest 1.3.0, and the client's current `phinix.managed` staging source is unchanged.
-
-## Maintainer actions
-
-No new secrets are needed now. Review applications/reports and decide first-time admission once A2–A4 are connected; ordinary later versions should not require repeated manual approval. Plain comments or arbitrary labels are not approvals.
-
-For retries use Actions → Plugin intake → Run workflow with the issue number, or:
+## Retry and local validation
 
 ```sh
-# Trusted validator/self-check only; no application or publication.
+# Static trusted-tool self-check only.
 gh workflow run plugin-intake.yml --repo HunYuan2333/Phinix-Plugin-Index -f issue_number=0
-# Replace 123 with the real submission number; checks/reports, never publishes.
+# Recheck and report an existing submission; this command alone does not approve it.
 gh workflow run plugin-intake.yml --repo HunYuan2333/Phinix-Plugin-Index -f issue_number=123
-gh run list --repo HunYuan2333/Phinix-Plugin-Index --workflow plugin-intake.yml --limit 5
-# Replace RUN_ID.
+gh run list --repo HunYuan2333/Phinix-Plugin-Index --limit 5
 gh run view RUN_ID --repo HunYuan2333/Phinix-Plugin-Index --log-failed
-```
 
-Forms/Issue events require the workflow on the default branch. Checkouts pin the trusted event commit and retain no git credentials. Never checkout/build author scripts with publication credentials. Read-only checks and issue-report writes use separate jobs. Official Actions pin full commit SHAs; candidate text is not interpolated into shell commands. Do not include secrets or private data in applications.
-
-## A2 → A3 → A4
-
-| Batch | Delivery | Activation/acceptance |
-| --- | --- | --- |
-| A1 | Current submission, fixed-candidate check and report delivery | Trusted CI, real asset checks and automatic issue report; no first-time approval |
-| A2 | Bot metadata-only PR; maintainer approval of the exact candidate; persistent identity/time/issue/source/update-scope records in reviews and packages | Changed candidates invalidate approval; unauthorized reviewers cannot approve; recheck changed assets; keep permanent report digest |
-| A3 | Check approved public sources roughly every six hours with manual retry; revalidate complete published releases and automatically accept normal versions inside policy | Never replace bytes of accepted versions; owner/repository/channel changes require review; recalculate dependency closure within allowed scope or pause; retain old versions on failure |
-| A4 | Serialized validation of approved inputs and full dependency closure; catalog → fixed published release → verify assets → immutable published description → stable last; gateway integration | Failures/retries/concurrency never break prior stable; directly invoke trusted publishing instead of assuming bot tag pushes trigger another workflow; real client download acceptance before enabling automatic publication |
-
-Configure minimal PR/content write permissions when A2/A4 are implemented and validated, not in A1. Design branch/review rules alongside automatic ordinary updates rather than requiring manual approval for every version. Changes to trusted validator/publisher code remain maintainer-reviewed.
-
-A4 does not change Cloudflare sources/defaults/R2 until deployment configuration is concrete. Workflow artifacts are not permanent download links. Catalog schema is v3; name/summary/changelog come from package language files, and UI strings remain in the ZIP.
-
-A GitHub App is deferred until cross-repository triggers, a distinct bot identity or finer installation scope are needed; then restrict installation to the index and provision App ID/private key separately. Authors do not supply tokens. AI source review is a later auxiliary step; this batch uses no model key or calls.
-
-## Local maintenance
-
-```sh
 dotnet build Validator/Validator.csproj --configuration Release
 python3 -m unittest discover -s tests -v
-python3 scripts/bot.py check --input examples/managed-submission.json --validator Validator/bin/Release/net10.0/Validator.dll --output /tmp/phinix-bot-new-check
+python3 scripts/bot.py check --input examples/managed-submission.json --validator Validator/bin/Release/net10.0/Validator.dll --output /tmp/phinix-bot-example-check
 ```
 
-The last command performs real GitHub requests; use a new output directory. `Validator/Production` is an explicit production source snapshot with origins/hashes in `production-provenance.json`. Refresh deliberately, validate regressions/real assets, and never fetch a mutable framework main branch during checks. Do not store author binaries, game references, credentials or private logs in the index.
+The last command contacts GitHub and validates the real release; use a fresh output directory. Workflow reports expire after 14 days; permanent approval records, hashes and immutable publication snapshots live in the repository and Releases.
 
-References: [GITHUB_TOKEN](https://docs.github.com/en/actions/tutorials/authenticate-with-github_token), [workflow triggering](https://docs.github.com/en/actions/how-tos/write-workflows/choose-when-workflows-run/trigger-a-workflow), [Actions permissions API](https://docs.github.com/en/rest/actions/permissions). Ordinary tag pushes by `GITHUB_TOKEN` do not trigger another workflow; PR opened/synchronize/reopened can require approval to run. Publication must use an explicit orchestration path.
+## Maintenance boundaries
+
+Workflow permissions default to read-only; individual report/admission/publication jobs request the minimum writes needed. Workflows pin trusted code and action revisions, use explicit publication orchestration, and never build author scripts with publishing credentials. Cloudflare uses a separate read-only origin token. Do not submit tokens, private data, game reference DLLs or generated binaries to the index.
+
+`Validator/Production` is an explicit snapshot of production validation code with origins and hashes in `production-provenance.json`; refresh deliberately and verify regressions plus real assets. Older Playtest regression input is under `tests/fixtures`, separate from the current author example. Preserve accepted version locks and audit snapshots; never overwrite published bytes. A separate GitHub App and AI review can be considered later when required.

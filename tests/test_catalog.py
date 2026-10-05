@@ -8,7 +8,7 @@ import unittest
 ROOT = Path(__file__).resolve().parents[1]
 spec = importlib.util.spec_from_file_location('catalog', ROOT / 'scripts/catalog.py')
 catalog = importlib.util.module_from_spec(spec); spec.loader.exec_module(catalog)
-EXAMPLE = json.loads((ROOT / 'examples/managed-submission.json').read_text())
+EXAMPLE = json.loads((ROOT / 'tests/fixtures/managed-submission.json').read_text())
 VALIDATOR = ROOT / 'Validator/bin/Release/net10.0/Validator.dll'
 FIXTURES = ROOT / 'tests/fixtures/localization-display.json'
 
