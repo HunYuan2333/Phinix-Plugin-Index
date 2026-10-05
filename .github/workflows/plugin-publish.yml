@@ -18,7 +18,8 @@ concurrency:
   cancel-in-progress: false
 jobs:
   verify:
-    if: github.repository == 'HunYuan2333/Phinix-Plugin-Index' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.display_title, 'Label admission #')))
+    if: >-
+      github.repository == 'HunYuan2333/Phinix-Plugin-Index' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.display_title, 'Label admission #')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -62,7 +63,8 @@ jobs:
           GH_TOKEN: ${{ github.token }}
         run: python3 scripts/publisher.py --validator Validator/bin/Release/net10.0/Validator.dll
   notify:
-    if: always() && github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.display_title, 'Label admission #') && github.repository == 'HunYuan2333/Phinix-Plugin-Index'
+    if: >-
+      always() && github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.display_title, 'Label admission #') && github.repository == 'HunYuan2333/Phinix-Plugin-Index'
     needs: [verify, publish]
     runs-on: ubuntu-latest
     timeout-minutes: 3
