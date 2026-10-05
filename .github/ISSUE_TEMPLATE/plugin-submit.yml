@@ -14,7 +14,7 @@ body:
     id: candidate
     attributes:
       label: Candidate JSON
-      description: Exact schemaVersion=1 envelope and schema-v2 package record; IDs are decimal strings.
+      description: Exact schemaVersion=1 envelope and schema-v3 package record; IDs are decimal strings.
       render: json
       placeholder: '{"schemaVersion":1,"package":{...}}'
     validations:
