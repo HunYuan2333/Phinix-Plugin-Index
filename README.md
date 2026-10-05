@@ -1,5 +1,10 @@
 # Phinix Plugin Index
 
+## Plugin intake bot (A1)
+
+The application form, fixed-release ZIP/PE checks and automatic issue reports are now provided by GitHub Actions. No packages have been approved or published by this bootstrap. First-time approvals, automatic version tracking and catalog publishing follow in A2–A4. See [bot operations](GitHubBotGuide.md) / [中文](GitHubBotGuide.zh-CN.md). Earlier initialization text below is historical.
+
+
 [中文说明](README.zh-CN.md)
 
 Development bootstrap for the public Phinix plugin catalog. This repository stores

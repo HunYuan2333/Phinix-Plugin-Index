@@ -6,3 +6,9 @@ __pycache__/
 *.zip
 *.log
 .env
+
+**/bin/
+**/obj/
+**/__pycache__/
+out/
+*.zip

@@ -1,0 +1,68 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "id": "phinix.poc.playtest",
+    "name": "Phinix Store Playtest",
+    "author": "HunYuan2333",
+    "license": "MIT",
+    "summary": "验证 Tab 注册、持久计数和 100 白银操作。此测试包基于 RimWorld 1.6（Assembly-CSharp 1.6.9676.18020）；安装、启停与卸载重启后生效。仅供测试存档。",
+    "tags": [
+      "test",
+      "utility"
+    ],
+    "state": "active",
+    "channel": "github-release",
+    "management": "phinix-dll",
+    "manifest": {
+      "schemaVersion": 1,
+      "management": "phinix-dll",
+      "packageId": "phinix.poc.playtest",
+      "name": "Phinix Store Playtest",
+      "version": "1.2.1",
+      "targetFramework": "net472",
+      "compatibility": {
+        "rimWorldVersions": [
+          "1.6"
+        ],
+        "phinixRange": ">=0.9.7 <1.0.0",
+        "abstractionsRange": ">=1.6.0 <2.0.0"
+      },
+      "dependencies": [],
+      "externalMods": [],
+      "resources": [],
+      "assemblies": [
+        {
+          "name": "Phinix.Store.Playtest",
+          "version": "1.2.1.0",
+          "culture": "neutral",
+          "publicKeyToken": "null",
+          "path": "Assemblies/Phinix.Store.Playtest.dll",
+          "length": 11264,
+          "sha256": "9961e99af3e785737dbecf27c2eb7bba143b81c2003ebdaf0b4c71e14461eaa5"
+        }
+      ],
+      "modules": [
+        {
+          "id": "phinix.poc.playtest",
+          "assemblyName": "Phinix.Store.Playtest",
+          "entryType": "Phinix.Store.Playtest.PlaytestExtension",
+          "dependsOn": []
+        }
+      ]
+    },
+    "artifact": {
+      "repository": "HunYuan2333/Phinix-PluginStore-PoC",
+      "repositoryId": "1403380030",
+      "ownerId": "64630568",
+      "sourceCommit": "f020d7c6fc5144c66d77b6f1dde8be5d55c13fd2",
+      "tag": "v1.2.1",
+      "releaseId": "403371396",
+      "assetId": "611507077",
+      "assetName": "phinix-managed-playtest-1.2.1.zip",
+      "payloadKind": "managed-dll-zip",
+      "sha256": "161181dd89e176293b9d8ad5cec8892240aea6279cebf260758b62ee118234b3",
+      "manifestSha256": "0a312d23e766f1a641c38a0cc4ada4ac3fc5ea749306004e558b74b5ca90b621",
+      "sizeBytes": 5913
+    }
+  }
+}
