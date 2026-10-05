@@ -6,6 +6,6 @@
 
 正式源为 `phinix.official`；客户端默认 GitHub，可切换 CF 加速，访问的是同一目录。`stable.json` 指向当前 schema-v3 不可变目录 Release。开发分支文件和测试夹具不代表上架。
 
-Playtest 测试插件从玩家目录排除，仅在独立的 [Phinix-PluginStore-PoC](https://github.com/HunYuan2333/Phinix-PluginStore-PoC) 保留。真实插件准入前正式目录为空是正常的。原测试审批和历史快照保留供追溯，不作为商店条目。维护者管理 `catalog-exclusions.json`；下架不改写已批准资产/发布锁，并重新验证可见目录依赖闭包。
+Playtest 测试插件从玩家目录排除，仅在独立的 [Phinix-PluginStore-PoC](https://github.com/HunYuan2333/Phinix-PluginStore-PoC) 保留。正式目录现已包含 [Phinix 示例插件](https://github.com/HunYuan2333/Phinix-Example-Plugin)，展示正规申请、多语言、Tab 和设置，不操作殖民地或物品。原测试审批和历史快照保留供追溯，不作为商店条目。维护者管理 `catalog-exclusions.json`；下架不改写已批准资产/发布锁，并重新验证可见目录依赖闭包。
 
 Workflows、可信 Validator 和回归夹具属于维护基础设施。禁止上传凭据、作者二进制、游戏/Unity DLL 或服务器状态。审核元数据并不代表代码安全认证。[客户端开发](https://github.com/HunYuan2333/Phinix-Rework)。
