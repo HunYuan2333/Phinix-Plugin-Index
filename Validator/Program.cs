@@ -15,6 +15,8 @@ internal static class Program
         try
         {
             var catalog = ManagedStoreCatalogReader.Read(File.ReadAllBytes(args[2]), args[1]);
+            if (args.Length == 3 && args[0] == "publication")
+            { PublicationClosure.Validate(catalog); Console.WriteLine("Publication dependency closure verified."); return 0; }
             if (args.Length == 3 && args[0] == "catalog")
             { Console.WriteLine("Catalog structure verified."); return 0; }
             if (args.Length != 7 || args[0] != "payload") return 2;

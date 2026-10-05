@@ -90,9 +90,11 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 
 class GitHub:
-    def __init__(self):
+    def __init__(self, max_calls=24, timeout=240):
+        require(1 <= max_calls <= 512 and 1 <= timeout <= 1800, 'OriginBudget')
         self.opener = urllib.request.build_opener(NoRedirect())
-        self.deadline = time.monotonic() + 240
+        self.deadline = time.monotonic() + timeout
+        self.max_calls = max_calls
         self.calls = 0
 
     def request(self, url, accept='application/vnd.github+json', method='GET', data=None, binary=False):
@@ -103,7 +105,7 @@ class GitHub:
                 'OriginUrlRejected')
         require(api or binary and parsed.hostname == 'release-assets.githubusercontent.com' and
                 parsed.path.startswith('/github-production-release-asset/'), 'OriginRedirectRejected')
-        require(self.calls <= 24 and time.monotonic() < self.deadline, 'OriginBudget')
+        require(self.calls <= self.max_calls and time.monotonic() < self.deadline, 'OriginBudget')
         headers = {'Accept': accept, 'User-Agent': 'Phinix-Index-Bot/0.1', 'Accept-Encoding': 'identity'}
         if api:
             headers['X-GitHub-Api-Version'] = '2022-11-28'

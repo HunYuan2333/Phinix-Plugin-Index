@@ -1,5 +1,8 @@
 # GitHub 插件索引机器人操作说明
 
+2026-10-05：A2 与受控 A4 已实现，见[准入、发布及人工验收](ControlledPublication.zh-CN.md)。下方旧的 A2/A4 待实施说明以此为准；A3 尚未启用。
+
+
 [English](GitHubBotGuide.md)。2026-10-05。目标仓库：[HunYuan2333/Phinix-Plugin-Index](https://github.com/HunYuan2333/Phinix-Plugin-Index)。
 
 首版采用 GitHub Actions，报告身份是 `github-actions[bot]`。不需要常驻服务器、注册 GitHub App 或提供新的个人 token。工作流使用仓库自动提供的 `GITHUB_TOKEN`，默认只读；报告任务单独申请 `issues: write`。Cloudflare 的 `GITHUB_TOKEN` 是另一份回源只读凭据，不拿来给机器人写仓库。

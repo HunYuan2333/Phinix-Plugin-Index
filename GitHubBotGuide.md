@@ -1,5 +1,8 @@
 # GitHub index bot operations
 
+2026-10-05: A2 and controlled A4 are implemented. See [admission, publication and maintainer acceptance](ControlledPublication.md). The older A2/A4 future-tense notes below are superseded; A3 remains pending.
+
+
 [中文](GitHubBotGuide.zh-CN.md). 2026-10-05. Repository: [HunYuan2333/Phinix-Plugin-Index](https://github.com/HunYuan2333/Phinix-Plugin-Index).
 
 Use GitHub Actions with `github-actions[bot]`. No server, GitHub App or new personal token is needed initially. Workflows use the repository-provided `GITHUB_TOKEN`, defaulting to read access; only the report job requests `issues: write`. The Cloudflare read-only origin token is separate and is never reused for index writes.
