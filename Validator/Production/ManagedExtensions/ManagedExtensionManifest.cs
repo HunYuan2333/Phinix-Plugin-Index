@@ -119,13 +119,14 @@ namespace Utils.Framework.ManagedExtensions
         internal ManagedExtensionManifest(string id, string name, ManagedExtensionVersion version,
             ManagedExtensionCompatibility compatibility, IEnumerable<ManagedExtensionDependency> dependencies,
             IEnumerable<ManagedExtensionModule> modules, IEnumerable<ManagedExtensionAssembly> assemblies,
-            IEnumerable<ManagedExtensionFile> resources, IEnumerable<ManagedExtensionExternalMod> externalMods)
+            IEnumerable<ManagedExtensionFile> resources, IEnumerable<ManagedExtensionExternalMod> externalMods, ExtensionLocalizationDeclaration localization = null)
         {
             PackageId = id; Name = name; Version = version; Compatibility = compatibility;
             Dependencies = ManagedExtensionCompatibility.Freeze(dependencies); Modules = ManagedExtensionCompatibility.Freeze(modules);
             Assemblies = ManagedExtensionCompatibility.Freeze(assemblies); Resources = ManagedExtensionCompatibility.Freeze(resources);
-            ExternalMods = ManagedExtensionCompatibility.Freeze(externalMods);
+            ExternalMods = ManagedExtensionCompatibility.Freeze(externalMods); Localization = localization;
         }
+        public ExtensionLocalizationDeclaration Localization { get; }
         public string PackageId { get; }
         public string Name { get; }
         public ManagedExtensionVersion Version { get; }

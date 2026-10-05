@@ -60,12 +60,12 @@ namespace Utils.Framework.ManagedExtensions
     /// <summary>Local inspection, not proof of loadability, activation or remote approval.</summary>
     public sealed class ManagedExtensionPackageSnapshot
     {
-        internal ManagedExtensionPackageSnapshot(string recordKey, string sourceId, string endpointHash, string packageId,
+        internal ManagedExtensionPackageSnapshot(string recordKey, string sourceId, string identityHash, string packageId,
             string version, string manifestHash, string snapshotId, string catalogHash, string artifactHash, string transactionId, string stateOperationId,
             ManagedExtensionManifest manifest, ManagedExtensionDesiredState desiredState,
             ManagedExtensionContentState contentState, string diagnosticCode)
         {
-            RecordKey = recordKey; SourceId = sourceId; RepositoryEndpointSha256 = endpointHash; PackageId = packageId;
+            RecordKey = recordKey; SourceId = sourceId; RepositoryIdentitySha256 = identityHash; PackageId = packageId;
             Version = version; ManifestSha256 = manifestHash; InstallationTransactionId = transactionId;
             CatalogSnapshotId = snapshotId; CatalogSha256 = catalogHash; ArtifactSha256 = artifactHash;
             StateOperationId = stateOperationId; Manifest = manifest; DesiredState = desiredState;
@@ -73,7 +73,7 @@ namespace Utils.Framework.ManagedExtensions
         }
         public string RecordKey { get; }
         public string SourceId { get; }
-        public string RepositoryEndpointSha256 { get; }
+        public string RepositoryIdentitySha256 { get; }
         public string PackageId { get; }
         public string Version { get; }
         public string ManifestSha256 { get; }
@@ -104,7 +104,7 @@ namespace Utils.Framework.ManagedExtensions
         public const int MaxRecordBytes = 2 * 1024 * 1024;
         internal sealed class Receipt
         {
-            internal string SourceId, EndpointHash, PackageId, Version, ManifestHash, SnapshotId, CatalogHash, ArtifactHash, TransactionId;
+            internal string SourceId, IdentityHash, PackageId, Version, ManifestHash, SnapshotId, CatalogHash, ArtifactHash, TransactionId;
             internal List<ManagedExtensionFile> Files;
         }
 
@@ -193,7 +193,7 @@ namespace Utils.Framework.ManagedExtensions
             catch (DirectoryNotFoundException) { code = contentVerified ? "DesiredStateMissing" : "PackageFileMissing"; }
             catch (IOException) { code = "PackageStorageFailed"; }
             catch (UnauthorizedAccessException) { code = "PackageStorageFailed"; }
-            return new ManagedExtensionPackageSnapshot(safeKey, receipt?.SourceId, receipt?.EndpointHash, receipt?.PackageId, receipt?.Version,
+            return new ManagedExtensionPackageSnapshot(safeKey, receipt?.SourceId, receipt?.IdentityHash, receipt?.PackageId, receipt?.Version,
                 receipt?.ManifestHash, receipt?.SnapshotId, receipt?.CatalogHash, receipt?.ArtifactHash, receipt?.TransactionId, operationId, manifest, desired,
                 contentVerified ? ManagedExtensionContentState.ContentVerified : ManagedExtensionContentState.Invalid, code);
         }
@@ -201,12 +201,12 @@ namespace Utils.Framework.ManagedExtensions
         internal static Receipt ReadReceipt(byte[] bytes)
         {
             var f = ManagedExtensionJson.Object(ManagedExtensionJson.Read(bytes, MaxRecordBytes),
-                "schemaVersion", "sourceId", "repositoryEndpointSha256", "packageId", "version", "manifestSha256", "catalogSnapshotId",
+                "schemaVersion", "sourceId", "repositoryIdentitySha256", "packageId", "version", "manifestSha256", "catalogSnapshotId",
                 "catalogSha256", "artifactSha256", "installationTransactionId", "files");
             if (ManagedExtensionJson.Integer(Get(f, "schemaVersion"), 1, int.MaxValue) != 1) throw ManagedExtensionJson.Error("UnsupportedReceiptSchema");
             var result = new Receipt
             {
-                SourceId = ManagedExtensionJson.Id(Get(f, "sourceId")), EndpointHash = ManagedExtensionJson.Hex(Get(f, "repositoryEndpointSha256"), 64),
+                SourceId = ManagedExtensionJson.Id(Get(f, "sourceId")), IdentityHash = ManagedExtensionJson.Hex(Get(f, "repositoryIdentitySha256"), 64),
                 PackageId = ManagedExtensionJson.Id(Get(f, "packageId")), Version = ManagedExtensionVersion.Parse(ManagedExtensionJson.Text(Get(f, "version"), 32)).ToString(),
                 ManifestHash = ManagedExtensionJson.Hex(Get(f, "manifestSha256"), 64), TransactionId = ManagedExtensionJson.Hex(Get(f, "installationTransactionId"), 32),
                 SnapshotId = ManagedExtensionJson.Hex(Get(f, "catalogSnapshotId"), 40), CatalogHash = ManagedExtensionJson.Hex(Get(f, "catalogSha256"), 64),

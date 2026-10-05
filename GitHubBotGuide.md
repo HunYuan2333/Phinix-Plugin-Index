@@ -6,9 +6,9 @@ Use GitHub Actions with `github-actions[bot]`. No server, GitHub App or new pers
 
 ## A1: submission and static reports
 
-Authors use Issues → New issue → Plugin submission. Copy [the example](examples/managed-submission.json) and replace every field with their fixed release, including public repository/owner IDs, source commit, published release/asset IDs, manifest, size and hashes. The real Playtest 1.2.1 example is test input, not an approved official entry. Titles start with `[Plugin]`; the form produces a `Candidate JSON` section.
+Authors use Issues → New issue → Plugin submission. Copy [the example](examples/managed-submission.json) and replace every field with their fixed release, including public repository/owner IDs, source commit, published release/asset IDs, manifest, size and hashes. The real Playtest 1.3.0 example is test input, not an approved official entry. Titles start with `[Plugin]`; the form produces a `Candidate JSON` section.
 
-New, edited or reopened submissions trigger strict client-equivalent schema-v2 validation, GitHub public repository/owner identities, non-draft/non-prerelease release, tag-to-commit proof, public C# source tree, asset membership/identity/size and actual SHA-256. Downloads use only GitHub API and the allowed asset CDN. Production ZIP/PE validation checks layout, manifest/content digests, target framework, assembly and module declarations without loading or executing plugin code.
+New, edited or reopened submissions trigger strict client-equivalent schema-v3 validation, GitHub public repository/owner identities, non-draft/non-prerelease release, tag-to-commit proof, public C# source tree, asset membership/identity/size and actual SHA-256. Downloads use only GitHub API and the allowed asset CDN. Production ZIP/PE validation checks layout, manifest/content digests, target framework, assembly and module declarations without loading or executing plugin code.
 
 Artifacts contain canonical `candidate.json`, `static.json` and `report.json`, binding the candidate fingerprint and issue body hash/update time. The issue is rechecked before completion and reporting; changed submissions stop stale reports. The bot posts pass/fail and fingerprint on an unchanged issue. Artifacts expire after 14 days; downloaded ZIPs are deleted at check completion.
 
@@ -43,7 +43,7 @@ Forms/Issue events require the workflow on the default branch. Checkouts pin the
 
 Configure minimal PR/content write permissions when A2/A4 are implemented and validated, not in A1. Design branch/review rules alongside automatic ordinary updates rather than requiring manual approval for every version. Changes to trusted validator/publisher code remain maintainer-reviewed.
 
-A4 does not change Cloudflare sources/defaults/R2 until deployment configuration is concrete. Workflow artifacts are not permanent download links. Catalog schema is v2; future changelog fields require synchronized publisher/client format support.
+A4 does not change Cloudflare sources/defaults/R2 until deployment configuration is concrete. Workflow artifacts are not permanent download links. Catalog schema is v3; name/summary/changelog come from package language files, and UI strings remain in the ZIP.
 
 A GitHub App is deferred until cross-repository triggers, a distinct bot identity or finer installation scope are needed; then restrict installation to the index and provision App ID/private key separately. Authors do not supply tokens. AI source review is a later auxiliary step; this batch uses no model key or calls.
 

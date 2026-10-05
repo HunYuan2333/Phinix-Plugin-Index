@@ -41,7 +41,7 @@ namespace Utils.Framework.ManagedExtensions
             byte[] receiptBytes=ManagedExtensionInventoryReader.Bytes(receiptPath,ManagedExtensionInventoryReader.MaxRecordBytes,token);
             var receipt=ManagedExtensionInventoryReader.ReadReceipt(receiptBytes);
             if(receipt.SourceId!=row.SourceId || receipt.PackageId!=row.PackageId || receipt.ManifestHash!=row.ManifestSha256 || receipt.TransactionId!=row.InstallationTransactionId ||
-                receipt.Version!=row.Version || receipt.EndpointHash!=row.RepositoryEndpointSha256 || receipt.SnapshotId!=row.CatalogSnapshotId || receipt.CatalogHash!=row.CatalogSha256 || receipt.ArtifactHash!=row.ArtifactSha256)
+                receipt.Version!=row.Version || receipt.IdentityHash!=row.RepositoryIdentitySha256 || receipt.SnapshotId!=row.CatalogSnapshotId || receipt.CatalogHash!=row.CatalogSha256 || receipt.ArtifactHash!=row.ArtifactSha256)
                 throw ManagedExtensionJson.Error("ManagedOwnershipChanged");
             string temporary=Path.Combine(paths.DesiredStateDirectory,".state-"+operation+".tmp");
             bool created=false, replacing=false;

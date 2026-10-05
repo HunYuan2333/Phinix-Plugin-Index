@@ -3,6 +3,39 @@ using System.Text.RegularExpressions;
 
 namespace Phinix.PluginStore
 {
+    internal enum RepositoryAccessMethod { Cloudflare, GitHub }
+
+    // Trusted configuration, never supplied by a catalog or redirect.
+    internal sealed class RepositoryProfile
+    {
+        internal RepositoryProfile(string sourceId, string repository, string repositoryId, string ownerId, string publicationBranch, string gatewayOrigin)
+        {
+            RepositoryEndpoint.ValidateId(sourceId);
+            if(!Regex.IsMatch(repository??"", @"\A[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}\z") || repository.EndsWith(".git",StringComparison.OrdinalIgnoreCase)) throw Error();
+            foreach(var id in new[]{repositoryId,ownerId})
+            { ulong n; if(!ulong.TryParse(id,System.Globalization.NumberStyles.None,System.Globalization.CultureInfo.InvariantCulture,out n) || n==0 || n.ToString(System.Globalization.CultureInfo.InvariantCulture)!=id) throw Error(); }
+            if(string.IsNullOrEmpty(publicationBranch) || publicationBranch.Length>128 || !Regex.IsMatch(publicationBranch,@"\A[A-Za-z0-9][A-Za-z0-9._/-]*\z") || publicationBranch.Contains("..") || publicationBranch.Contains("//") || publicationBranch.EndsWith("/") || publicationBranch.EndsWith(".")) throw Error();
+            SourceId=sourceId; Repository=repository; RepositoryId=repositoryId; OwnerId=ownerId; PublicationBranch=publicationBranch;
+            GatewayOrigin=new RepositoryEndpoint(gatewayOrigin,sourceId).Origin;
+            IdentityKey=CatalogReader.Hash(System.Text.Encoding.UTF8.GetBytes("repository-profile-v1\n"+sourceId+"\n"+repositoryId+"\n"+ownerId+"\n"+publicationBranch));
+        }
+        internal string SourceId { get; }
+        internal string Repository { get; }
+        internal string RepositoryId { get; }
+        internal string OwnerId { get; }
+        internal string PublicationBranch { get; }
+        internal string GatewayOrigin { get; }
+        internal string IdentityKey { get; }
+        internal void VerifyPublished(byte[] bytes)
+        {
+            var f=CatalogReader.ReadJson(bytes);
+            if(CatalogReader.Text(f.Element("repository"),"repository",140)!=Repository || CatalogReader.PositiveId(f.Element("repositoryId"),"repositoryId")!=RepositoryId || CatalogReader.PositiveId(f.Element("ownerId"),"ownerId")!=OwnerId)
+                throw new StoreValidationException("RepositoryProfileMismatch","Published catalog belongs to another approved repository identity.");
+        }
+        internal static RepositoryProfile Staging => new RepositoryProfile("phinix.managed","HunYuan2333/Phinix-PluginStore-PoC","1403380030","64630568","codex/managed-publication","https://plugins-staging.hunyuan2333.com");
+        private static StoreValidationException Error() { return new StoreValidationException("InvalidRepositoryProfile","Configure fixed public repository IDs, branch and gateway."); }
+    }
+
     // One configured origin. Resource paths never come from catalog URLs or redirects.
     internal sealed class RepositoryEndpoint
     {
@@ -18,6 +51,12 @@ namespace Phinix.PluginStore
             ValidateId(sourceId);
             Origin = uri.GetLeftPart(UriPartial.Authority); SourceId = sourceId;
         }
+        internal RepositoryEndpoint(RepositoryProfile profile,RepositoryAccessMethod method) : this(method==RepositoryAccessMethod.GitHub?"https://api.github.com":profile?.GatewayOrigin,profile?.SourceId)
+        { if(profile==null || !Enum.IsDefined(typeof(RepositoryAccessMethod),method)) throw new StoreValidationException("InvalidRepositoryProfile","Select a configured access method."); Profile=profile; AccessMethod=method; }
+        internal RepositoryProfile Profile { get; }
+        internal RepositoryAccessMethod AccessMethod { get; }
+        internal string IdentityKey => Profile?.IdentityKey ?? CatalogReader.Hash(System.Text.Encoding.UTF8.GetBytes("gateway-profile-v1\n"+SourceId+"\n"+Origin));
+        internal string AccessKey => AccessMethod.ToString()+":"+Origin;
         public string Origin { get; }
         public string SourceId { get; }
         public string CacheKey => CatalogReader.Hash(System.Text.Encoding.UTF8.GetBytes(Origin + "\n" + SourceId));
@@ -121,6 +160,12 @@ namespace Phinix.PluginStore
         }
         private static void VerifyEnvelope(RepositoryStable stable,byte[] published,byte[] catalog)
         {
+            VerifyPublished(stable,published);
+            VerifyBytes(catalog, stable.CatalogSizeBytes, stable.CatalogSha256, "Catalog");
+        }
+
+        internal static void VerifyPublished(RepositoryStable stable,byte[] published)
+        {
             VerifyBytes(published, stable.PublishedSizeBytes, stable.PublishedSha256, "Published");
             Limit(published);
             var f = CatalogReader.Object(CatalogReader.ReadJson(published), "published", "schemaVersion", "sourceId", "snapshotId", "catalogSchemaVersion",
@@ -140,7 +185,6 @@ namespace Phinix.PluginStore
                 CatalogReader.PositiveId(CatalogReader.Required(f, name), name);
             if (CatalogReader.Text(CatalogReader.Required(f, "assetName"), "assetName", 128) != "catalog.json")
                 throw new StoreValidationException("InvalidCatalogAsset", "This protocol draft requires a catalog.json release asset.");
-            VerifyBytes(catalog, stable.CatalogSizeBytes, stable.CatalogSha256, "Catalog");
         }
 
         private static void Limit(byte[] bytes)

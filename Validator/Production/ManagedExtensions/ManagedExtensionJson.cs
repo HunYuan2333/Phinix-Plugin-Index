@@ -12,6 +12,7 @@ namespace Utils.Framework.ManagedExtensions
 {
     public sealed class ManagedExtensionValidationException : Exception
     {
+        public string ResourcePath { get; internal set; }
         public ManagedExtensionAssemblyReferenceFailure ReferenceFailure { get; internal set; }
         public ManagedExtensionValidationException(string code) : base(code) { Code = code; }
         public ManagedExtensionValidationException(string code, Exception inner) : base(code, inner) { Code = code; }

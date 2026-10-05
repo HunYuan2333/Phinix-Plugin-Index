@@ -13,7 +13,7 @@ namespace Utils.Framework.ManagedExtensions
                 ",\"recordKey\":"+Q(row?.RecordKey)+",\"version\":"+Q(row?.Version)+",\"manifestSha256\":"+Q(row?.ManifestSha256)+",\"catalogSnapshotId\":"+Q(row?.CatalogSnapshotId)+
                 ",\"catalogSha256\":"+Q(row?.CatalogSha256)+",\"artifactSha256\":"+Q(row?.ArtifactSha256)+",\"installationTransactionId\":"+Q(row?.InstallationTransactionId)+
                 ",\"stateOperationId\":"+Q(row?.StateOperationId)+",\"assemblyName\":"+Q(entry.AssemblyName)+",\"moduleId\":"+Q(entry.ModuleId)+
-                ",\"referencingAssembly\":"+Q(entry.ReferenceFailure?.ReferencingAssembly)+",\"requiredReference\":"+Q(entry.ReferenceFailure?.RequiredReference)+
+                ",\"resourcePath\":"+Q(entry.ResourcePath)+",\"referencingAssembly\":"+Q(entry.ReferenceFailure?.ReferencingAssembly)+",\"requiredReference\":"+Q(entry.ReferenceFailure?.RequiredReference)+
                 ",\"availableReferences\":"+(entry.ReferenceFailure==null?"null":"["+string.Join(",",System.Linq.Enumerable.Select(entry.ReferenceFailure.AvailableReferences,Q))+"]")+"}";
         }
         private static string Q(string value)

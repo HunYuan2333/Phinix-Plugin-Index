@@ -92,7 +92,7 @@ class IntakeTests(unittest.TestCase):
 
     def test_catalog_validator_rejects_unknown_fields_and_duplicate_versions(self):
         self.assertTrue(VALIDATOR.is_file(), 'Build the validator before running tests.')
-        catalog = {'schemaVersion': 2, 'sourceId': bot.SOURCE, 'snapshotId': 'a' * 40, 'packages': [EXAMPLE['package']]}
+        catalog = {'schemaVersion': 3, 'sourceId': bot.SOURCE, 'snapshotId': 'a' * 40, 'packages': [EXAMPLE['package']]}
         with tempfile.TemporaryDirectory() as tmp:
             path = Path(tmp) / 'catalog.json'
             def run(value):

@@ -25,7 +25,7 @@ namespace Phinix.PluginStore
         internal ManagedExtensionInstallPackage InstallationInput(RepositoryEndpoint endpoint,ManagedStoreCatalogSnapshot catalog)
         {
             endpoint.Package(catalog,Package);
-            return new ManagedExtensionInstallPackage(catalog.SourceId,endpoint.CacheKey,catalog.SnapshotId,catalog.Sha256,Sha256,manifestBytes,content);
+            return new ManagedExtensionInstallPackage(catalog.SourceId,endpoint.IdentityKey,catalog.SnapshotId,catalog.Sha256,Sha256,manifestBytes,content);
         }
     }
 
@@ -94,6 +94,8 @@ namespace Phinix.PluginStore
                         allContent.Add(declaration.Path,content);
                         if(assemblyPaths.Contains(declaration.Path)) assemblies.Add(declaration.Path,content);
                     }
+                    var languages=ExtensionLocalizationCatalog.Load(actual.Localization,file=>allContent[file.Path],token);
+                    if(actual.Localization!=null) expected.Localization.VerifyProjection(languages);
                     var inspected=ManagedExtensionPayloadInspector.Inspect(actual,assemblies,token);
                     token.ThrowIfCancellationRequested();
                     return new ManagedStorePayloadReport(expected,hash,manifest,inspected,files.OrderBy(f=>f.Path,StringComparer.Ordinal),allContent);
