@@ -10,6 +10,7 @@ import tempfile
 
 from bot import SOURCE, INDEX, GitHub, Rejected, require, strict_json, encode, digest, inspect, validator
 from admission import PREFIX, REPOSITORY_ID, OWNER_ID, WORKFLOW, event, maintainer, index, paths, read_bundle, commit
+import label_admission
 
 MAX_RECORDS = 8
 
@@ -41,6 +42,9 @@ def record_bundle(candidate_raw, review_raw, policy_raw):
 
 def approval_proof(api, package, review, scope, candidate, snapshot):
     approval = review['approval']
+    if approval.get('workflow') == label_admission.WORKFLOW:
+        label_admission.proof(api, candidate, review, scope, snapshot)
+        return
     require(type(approval['attempt']) is int and approval['attempt'] == 1 and approval['workflow'] == WORKFLOW and
             re.fullmatch(r'[1-9][0-9]*', approval['runId']) and
             re.fullmatch(r'[0-9a-f]{40}', approval['trustedCommit']), 'ApprovalProofRejected')
@@ -120,6 +124,36 @@ def collect(args, api, snapshot):
     return records, locks, old_locks
 
 
+def label_receipts(args, api, snapshot, records, old_locks, trigger):
+    receipts = files(args.root, 'label-approvals'); old = files(args.root, 'approval-locks')
+    approved = {r['candidateSha256']: (c, r, s) for c, r, s in records}
+    published = {strict_json(raw)['candidateSha256'] for raw in old_locks.values()}
+    locks = {}; pending = []; seen = set()
+    for name, raw in sorted(receipts.items()):
+        review = strict_json(raw); label_admission.validate_record(review)
+        require(name == label_admission.receipt_path(review), 'ApprovalRecordMismatch')
+        require(review['candidateSha256'] in approved, 'OrphanApprovalRecord')
+        candidate, original, scope = approved[review['candidateSha256']]
+        record_bundle(encode(candidate), raw, encode(scope))
+        require(review['static'] == original['static'], 'StaticReportChanged')
+        if review['approval']['reuseExisting']:
+            require(review['candidateSha256'] in published, 'AcceptedVersionChanged')
+            label_admission.proof(api, candidate, review, scope, snapshot)
+        else:
+            require(review == original, 'ApprovalRecordMismatch')
+        run = review['approval']['runId']; seen.add(run)
+        lock = 'approval-locks/' + run + '.json'
+        locks[lock] = encode(dict(schemaVersion=1, runId=run, candidateSha256=review['candidateSha256'],
+                                  reviewSha256=digest(raw)))
+        if lock not in old:
+            label_admission.current_approval(api, review); pending.append(review)
+    continuity(old, locks)
+    require(all(label_admission.receipt_path(r) in receipts for _, r, _ in records
+                if r['approval'].get('workflow') == label_admission.WORKFLOW), 'ApprovalRecordMissing')
+    require(trigger is None or trigger in seen, 'PublicationTriggerRejected')
+    return locks, old, pending
+
+
 def release_asset(api, snapshot, raw):
     tag = 'catalog-v3-' + snapshot
     releases = api.json(PREFIX + '/releases?per_page=100')
@@ -194,17 +228,20 @@ def completed_retry(api, snapshot, current):
 
 def publish(args, api):
     require(os.environ.get('GITHUB_REPOSITORY') == INDEX and os.environ.get('GITHUB_REF') == 'refs/heads/main' and
-            os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch', 'PublicationContextRejected')
+            os.environ.get('GITHUB_EVENT_NAME') in ('workflow_dispatch', 'workflow_run'), 'PublicationContextRejected')
+    trigger = label_admission.upstream(api) if os.environ.get('GITHUB_EVENT_NAME') == 'workflow_run' else None
     snapshot = os.environ.get('GITHUB_SHA', '')
     require(re.fullmatch(r'[0-9a-f]{40}', snapshot), 'TrustedHeadChanged')
     event('publication.started', snapshotId=snapshot, checkOnly=args.check_only)
-    maintainer(api, os.environ.get('GITHUB_TRIGGERING_ACTOR'), None)
+    if trigger is None:
+        maintainer(api, os.environ.get('GITHUB_TRIGGERING_ACTOR'), None)
     current = index(api)
     if current != snapshot:
         completed_retry(api, snapshot, current); return
     source = strict_json((args.root / 'source.json').read_bytes())
     require(source == dict(schemaVersion=1, sourceId=SOURCE, repository=INDEX), 'IndexIdentityMismatch')
     records, locks, old_locks = collect(args, api, snapshot)
+    approval_locks, old_approval_locks, pending = label_receipts(args, api, snapshot, records, old_locks, trigger)
     raw = encode(dict(schemaVersion=3, sourceId=SOURCE, snapshotId=snapshot,
                       packages=[c['package'] for c, _, _ in sorted(records, key=lambda r: (r[0]['package']['id'], r[0]['package']['manifest']['version']))]))
     require(len(raw) <= 2 * 1024 * 1024, 'DocumentLimit')
@@ -221,12 +258,15 @@ def publish(args, api):
     require(not existing.exists() or existing.read_bytes() == published, 'PublishedSnapshotChanged')
     changes = {published_path: published, 'stable.json': stable}
     changes.update({path: data for path, data in locks.items() if path not in old_locks})
+    changes.update({path: data for path, data in approval_locks.items() if path not in old_approval_locks})
     for candidate, review, scope in records:
         api.verify_origin(candidate['package']['artifact'])
         if review['candidateSha256'] not in {strict_json(v)['candidateSha256'] for v in old_locks.values()}:
             current = api.json(PREFIX + '/issues/' + str(review['issueNumber']))
             require('pull_request' not in current and
                     digest((current.get('body') or '').encode()) == review['issueBodySha256'], 'SubmissionChanged')
+    for review in pending:
+        label_admission.current_approval(api, review)
     sha = commit(api, snapshot, changes, 'Publish catalog v3 ' + snapshot)
     # The pointer, description and new locks become visible in one Git commit.
     # Reject stale input; force=false prevents two siblings from replacing each other.

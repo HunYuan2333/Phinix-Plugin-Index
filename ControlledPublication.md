@@ -1,50 +1,57 @@
 # Admission and controlled publication
 
-[中文](ControlledPublication.zh-CN.md). 2026-10-05. A2 and manually invoked A4; no scheduled A3 updates.
+[中文](ControlledPublication.zh-CN.md). 2026-10-05. The normal path is one maintainer approval label followed by automatic A2/A4. A3 version monitoring remains disabled.
 
-The trusted index workflow approves one exact candidate, stores permanent evidence in a metadata PR, and publishes only merged records. An intake pass, issue label or comment is never an approval. Neither workflow checks out or executes author code. The current game test source remains `phinix.managed`; official output uses `phinix.official` in the index repository.
+## Maintainer action
 
-## Maintainer acceptance
+1. Review the submission, source and Plugin intake report. Static checks do not prove code safety or source/binary correspondence.
+2. On that open submission Issue, add **`plugin-approved`** as a repository **admin or maintainer**. This is the only routine human approval action.
+3. The trusted **Plugin label admission** workflow binds the webhook body to a canonical candidate fingerprint and the specific label event/reviewer IDs. It rechecks public origin, ZIP, PE and localization without executing author code, creates an evidence-only PR and merges it automatically with an exact head SHA.
+4. On successful completion, **Plugin controlled publication** automatically rechecks approval provenance, PR contents, artifact bytes and complete package/module dependency closure, then publishes an immutable catalog and updates stable atomically. Issue comments link to both runs. No additional human review, PR merge or workflow dispatch is required.
 
-1. Submit the existing `examples/managed-submission.json` through the Plugin submission issue form. Wait for Plugin intake to pass, then copy the complete 64-character candidate SHA-256 from its report. Inspect the actual author source and static CLR references; static validation does not establish source/binary correspondence or runtime safety.
-2. As an admin or maintainer, run **Plugin admission** on `main`, with the real issue number and exact fingerprint. It freshly checks the release/tag/source/asset/ZIP/localization. A successful run creates `codex/admission-RUN_ID` and a metadata PR with exactly three new JSON files: candidate, review/static evidence, and manual-only policy. It never changes stable. A wrong fingerprint, edited submission, different branch, approval rerun or unauthorized actor fails before writing the PR.
-3. Review that PR. Check owner/repository numeric IDs, version, SHA-256, module/assembly identities, dependency IDs, language display and the permanent reviewer/run/source evidence. Merge it as an admin or maintainer without modifying its three files. To reject, close it. A corrected submission requires a fresh intake and approval run.
-4. Run **Plugin controlled publication**, first with `check_only=true`. It verifies successful trusted admission run, exact merged PR contents and human merger identity, fresh origin/ZIP/PE checks, policy, accepted-version locks and full package/module dependency closure. After it passes, run it with `check_only=false` to publish.
-5. Confirm the run ends with `publication.stable_committed`; inspect `stable.json`, the immutable `published/SNAPSHOT.json` and the fixed `catalog-v3-SNAPSHOT` Release. The old pointer remains on failure. Keep the run ID and stable snapshot when reporting failures. CLI download acceptance through GitHub and CF comes after this first human approval; automatic publication remains disabled until that acceptance passes.
+Example human test:
 
 ```sh
-# Replace ISSUE and FINGERPRINT with the report you reviewed.
-gh workflow run plugin-admission.yml --repo HunYuan2333/Phinix-Plugin-Index --ref main -f issue_number=ISSUE -f candidate_sha256=FINGERPRINT
-gh run list --repo HunYuan2333/Phinix-Plugin-Index --workflow plugin-admission.yml --limit 5
-# After reviewing and merging the generated admission PR:
+gh issue edit ISSUE --repo HunYuan2333/Phinix-Plugin-Index --add-label plugin-approved
+gh run list --repo HunYuan2333/Phinix-Plugin-Index --workflow plugin-label-admission.yml --limit 5
+gh run list --repo HunYuan2333/Phinix-Plugin-Index --workflow plugin-publish.yml --limit 5
+```
+
+If the candidate changes, the Issue closes, or the label is removed/re-added before publication, pending approval is invalidated. Fix the application and remove/re-add the label to authorize a new run; **re-running an old admission attempt is rejected**. Labels applied by a write-only collaborator or bot, arbitrary comments/labels, and stale events never authorize publication. Once published, the accepted version and approval locks remain immutable; later Issue edits or label changes do not revoke historical releases.
+
+## Evidence and permissions
+
+New versions add exactly four metadata files: `packages/ID_HASH/CANDIDATE_HASH.json`, `reviews/...`, `policies/...`, and `label-approvals/RUN_ID.json`. The review binds source, canonical candidate and Issue body hashes, actor/numeric ID, label name/event ID/time, trusted workflow/run/commit/attempt, static report and policy hashes. The policy pins repository/owner IDs, channel, management, assembly/module identities and dependency IDs; **manual-only** means each version still needs approval, not that post-approval automation is disabled. A3 automatic version admission requires separate implementation.
+
+An identical already published candidate creates only a new label receipt. It rechecks the same artifact and republishes a snapshot with one catalog entry, preserving the original review, version lock and DLL asset. A changed candidate for an accepted ID/version is rejected. `approval-locks/RUN_ID.json` permanently binds the receipt hash after publication. This supports testing the new label path with Playtest 1.3.0 without replacing an accepted version.
+
+Default workflow permissions remain read-only. Validation reads only; admission requests contents/PR write solely for the evidence PR and automatic merge; publication requests contents write solely for catalog/locks/stable; notifications request issues write. No approving PR review is submitted. GitHub's combined create-and-approve setting is enabled to allow PR creation; no new PAT/App/server is required. CF uses its independent read-only origin token. [GitHub settings](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository).
+
+The publisher uses `workflow_run` for the completed successful trusted label workflow, verifies the live run identity and requires its own receipt in the input tree. It checks out only the fixed default-main commit, never author code or upstream artifacts. [GitHub workflow_run](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run).
+
+## Atomic publication and recovery
+
+Admission and publication share `index-metadata` concurrency without cancellation. Admission checks the current main head and latest approval immediately before automatic merge. Publication builds the complete v3 closure, creates a fixed draft `catalog-v3-SNAPSHOT` Release, uploads without clobbering, verifies downloaded bytes/hash/size and source identity, then exposes the Release. One final non-forced Git update commits immutable published metadata, version/approval locks and `stable.json`. Concurrent changes stop stale writes; uploaded unreferenced snapshots do not replace the player entry.
+
+The publisher reuses matching partial uploads. A retry after a lost successful pointer response verifies the exact direct-child publication commit and asset, then reports `publication.already_complete` without writing. A best-effort comment failure does not fail an already committed operation. A failed admission may leave an unmerged evidence PR; check its run before retrying. A merged but unpublished receipt whose Issue/label changed blocks publication until that exact pending approval is resolved; do not bypass the rejection or edit accepted locks.
+
+Manual recovery still exists, but is not a routine approval step:
+
+```sh
 gh workflow run plugin-publish.yml --repo HunYuan2333/Phinix-Plugin-Index --ref main -f check_only=true
-# Only after that check passes:
+# Only after that verification succeeds:
 gh workflow run plugin-publish.yml --repo HunYuan2333/Phinix-Plugin-Index --ref main -f check_only=false
 ```
 
-There is no new token to create. Repository default workflow permissions stay read-only. Enable GitHub's combined “Allow GitHub Actions to create and approve pull requests” setting so the bot can create PRs; these workflows never post approving reviews, and publication requires a human merger. Only PR proposal requests contents/PR write; only the publication job requests contents write. Validation has read permissions. Cloudflare's read-only token is separate. [GitHub settings](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository).
+The former exact-fingerprint `Plugin admission` dispatch remains available for recovery of the already accepted manual path; those records still require a human-merged exact three-file PR. Label records allow only the fixed GitHub Actions bot to create and merge the PR. Neither path grants approval authority to arbitrary bot merges.
 
-## Stored records and policy
+Pilot limits: eight version records, eight label receipts, 400 Issue history events, 512 MiB aggregate ZIP bytes, 512 publisher API calls and a 25-minute API deadline, plus existing per-file/package limits. Expansion is a separate task. All downloaded author DLLs are inspected statically, never loaded. Client-side host/game/CLR compatibility checks still apply. Official output is `phinix.official`; the game's current default remains `phinix.managed`.
 
-Paths use SHA-256 of the package ID, followed by candidate SHA-256. `packages`, `reviews` and `policies` each store one file per approved version. Evidence contains source ID, canonical candidate hash, issue number/body hash/update time, approval UTC time, reviewer login/numeric ID, trusted workflow/run/commit/attempt, complete static report/hash and policy hash. Policy fixes public repository/owner numeric identities, channel, management, assembly/module names and dependency IDs.
-
-Policy mode is **manual-only** for this controlled pilot. Later A3 needs a separately reviewed ordinary-update policy and monitor; recording identities here does not enable it. Admission reruns are rejected to avoid changing who approved an old run; start a fresh workflow instead. Previously published versions have immutable `publication-locks` binding version, candidate and artifact hashes. Their records cannot disappear or change; a retired version/withdrawal policy is a later explicit change. Historical issue edits do not invalidate already locked versions, but uncommitted new versions require the unchanged body before publication.
-
-## Publication and recovery
-
-Both workflows share `index-metadata` concurrency with cancellation disabled. Publisher uses current trusted main commit as input/snapshot, builds and validates the complete v3 catalog, creates a draft fixed release, uploads without clobbering, verifies downloaded bytes/size/hash and tag/source identity, then makes the Release public. Finally, one Git commit adds immutable published metadata, new version locks and stable. A fresh-head check and non-forced fast-forward update prevent competing publishers from overwriting each other. A concurrent human commit stops publication; start a new run on current main. [Git references API](https://docs.github.com/en/rest/git/refs).
-
-Retries reuse an already uploaded matching asset and never replace it. If stable already committed and the success response was lost, retry verifies the exact direct-child pointer commit and downloaded catalog, then reports `publication.already_complete` without writes. An uploaded Release left by a failed pointer update is an unused immutable snapshot, not a broken player entry. Do not delete or retarget published releases/tags/assets. No reliance on token-generated pushes triggering another workflow; controlled publication is explicitly invoked. [GITHUB_TOKEN triggering](https://docs.github.com/en/actions/concepts/security/github_token).
-
-The initial bounds are eight approved version records, aggregate ZIP downloads 512 MiB, 512 API calls, 25-minute operation deadline and existing per-package/JSON limits. These fail closed and need deliberate scaling before a large catalog. Closure checks select compatible package version ranges, optional dependencies when present, package/module cycles and assembly/module collisions. This pilot rejects dependencies on host-provided module IDs until an explicit reviewed host-module allowlist exists. Client host/game/installed-state and actual CLR reference availability remain game/runtime gates.
-
-## Developer verification
-
-From the Phinix workspace:
+## Validation
 
 ```sh
-dotnet build Extensions/PluginStore/RepositoryAutomation/Validator/Validator.csproj --configuration Release --no-restore -p:BuildInParallel=false -m:1
+dotnet build Extensions/PluginStore/RepositoryAutomation/Validator/Validator.csproj --configuration Release --no-restore
 python3 -m unittest discover -s Extensions/PluginStore/RepositoryAutomation/tests -v
 ```
 
-In the index repository, the equivalent paths are `Validator/Validator.csproj` and `tests`. Tests cover approval proof and exact merged PR, fingerprint/role/branch/issue changes, policy/report tampering, version continuity, release partial-upload retry/replacement rejection, publication failure and concurrent-head preservation, atomic stable-last commit, and actual trusted dependency/module closure. Public origin checks and complete Actions execution still need remote acceptance; console tests do not prove in-game behavior.
+In the index repository use `Validator/Validator.csproj` and `tests`. 47 regressions cover exact manual and label approval, actor/event identity, edits/removal/readdition, automatic merge scope/head, successful-run and bot proof, immutable version/receipt locks, workflow-run provenance, rechecking after upload, notifications and atomic publication recovery. Remote human labeling is a distinct acceptance step; console/Actions checks are not in-game validation.

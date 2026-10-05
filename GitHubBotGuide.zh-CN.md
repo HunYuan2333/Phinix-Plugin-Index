@@ -1,6 +1,6 @@
 # GitHub 插件索引机器人操作说明
 
-2026-10-05：A2 与受控 A4 已实现，见[准入、发布及人工验收](ControlledPublication.zh-CN.md)。下方旧的 A2/A4 待实施说明以此为准；A3 尚未启用。
+2026-10-05：正常准入改为维护者给 Issue 加一次 `plugin-approved` 标签，证据 PR 合入和发布自动完成。见[当前操作说明](ControlledPublication.zh-CN.md)。下方旧 A2/A4 待实施说明为历史记录；A3 尚未启用。
 
 
 [English](GitHubBotGuide.md)。2026-10-05。目标仓库：[HunYuan2333/Phinix-Plugin-Index](https://github.com/HunYuan2333/Phinix-Plugin-Index)。
@@ -9,7 +9,7 @@
 
 ## 当前 A1：申请与静态报告
 
-作者在 Issues → New issue → Plugin submission 提交固定候选。复制 [示例](examples/managed-submission.json)，将全部字段换成自己的包，包括公开仓库、作者/仓库 ID、源码提交、正式 Release/资产 ID、manifest、大小和摘要。示例是真实 Playtest 1.3.0 的测试输入，不是已经批准的官方条目。申请标题以 `[Plugin]` 开头，表单生成 `Candidate JSON` 段。
+作者在 Issues → New issue → Plugin submission 提交固定候选。复制 [示例](examples/managed-submission.json)，将全部字段换成自己的包，包括公开仓库、作者/仓库 ID、源码提交、正式 Release/资产 ID、manifest、大小和摘要。示例是真实 Playtest 1.3.0 的测试输入，也已作为获准的正式条目。申请标题以 `[Plugin]` 开头，表单生成 `Candidate JSON` 段。
 
 机器人在申请新建、编辑或重新打开时检查：
 
@@ -19,7 +19,7 @@
 4. 输出 `candidate.json`、`static.json`、`report.json`，绑定规范化候选摘要及申请正文摘要/更新时间。检查及回报前再次核对申请；变化则停止旧报告。
 5. `github-actions[bot]` 在未变化的申请下回报通过/失败及候选指纹。报告工件保留 14 天，下载 ZIP 随检查结束删除。
 
-**A1 不创建批准记录，不生成条目 PR，不自动收录/监控新版本或发布 stable。** 静态通过不是代码安全、源码与 DLL 对应关系或实际游戏兼容的证明；报告列出实际 CLR 引用供后续审查。依赖闭包、批准范围和正式升级由后续批次接续。当前仍是空的官方索引，不改变客户端使用的 `phinix.managed` staging 来源。
+**A1 不创建批准记录，不生成条目 PR，不自动收录/监控新版本或发布 stable。** 静态通过不是代码安全、源码与 DLL 对应关系或实际游戏兼容的证明；报告列出实际 CLR 引用供后续审查。依赖闭包、批准范围和正式升级由后续批次接续。当前正式索引已有获准的 Playtest 1.3.0，不改变客户端使用的 `phinix.managed` staging 来源。
 
 ## 你现在需要做什么
 
