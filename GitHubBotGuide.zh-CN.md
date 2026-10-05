@@ -1,6 +1,6 @@
 # GitHub 插件索引机器人操作说明
 
-2026-10-05：正常准入改为维护者给 Issue 加一次 `plugin-approved` 标签，证据 PR 合入和发布自动完成。见[当前操作说明](ControlledPublication.zh-CN.md)。下方旧 A2/A4 待实施说明为历史记录；A3 尚未启用。
+2026-10-05：正常准入改为维护者给 Issue 加一次 `plugin-approved` 标签，证据 PR 合入、发布及关闭申请自动完成。失败加 `plugin-error`，静态报告向发布者提示修正办法。见[当前操作说明](ControlledPublication.zh-CN.md)。下方旧 A2/A4 待实施说明为历史记录；A3 尚未启用。
 
 
 [English](GitHubBotGuide.md)。2026-10-05。目标仓库：[HunYuan2333/Phinix-Plugin-Index](https://github.com/HunYuan2333/Phinix-Plugin-Index)。

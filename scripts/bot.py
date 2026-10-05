@@ -17,6 +17,7 @@ INDEX = 'HunYuan2333/Phinix-Plugin-Index'
 MAX_JSON = 2 * 1024 * 1024
 MAX_PACKAGE = 128 * 1024 * 1024
 HEADING = '### Candidate JSON'
+ERROR_LABEL = 'plugin-error'
 
 
 class Rejected(Exception):
@@ -249,6 +250,27 @@ def check(args):
     return 0 if report['status'] == 'passed' else 1
 
 
+def failure_hint(code):
+    if code == 'MissingCandidateJson':
+        return '申请正文必须且只能有一个 `### Candidate JSON` 段。 / Include exactly one `### Candidate JSON` section.'
+    if code == 'InvalidCandidateFence':
+        return 'JSON 代码块须以 ```json 开始、以 ``` 结束。 / Close the JSON code fence correctly.'
+    if code in ('InvalidJson', 'DuplicateField', 'SubmissionEnvelope', 'InvalidPackage'):
+        return ('请检查 JSON 语法、重复字段；最外层只能包含 `schemaVersion: 1` 和 `package`。 / '
+                'Check JSON syntax and duplicate fields; the envelope must contain only schemaVersion 1 and package.')
+    if code in ('InvalidOriginId', 'InvalidRepository', 'InvalidArtifact', 'InvalidCommit'):
+        return ('请核对 GitHub 仓库及公开 Release/资产身份，数字 ID 必须写成字符串，源码 commit 使用完整 40 位哈希。 / '
+                'Check repository/release/asset identity, string numeric IDs and the full 40-character source commit.')
+    if code in ('IssueBodyLimit', 'DocumentLimit', 'PayloadLimit'):
+        return '正文、JSON 或 ZIP 超过大小限制，请缩减后重新提交。 / Reduce the oversized submission/document/ZIP.'
+    if code == 'UnsupportedRoute':
+        return 'DLL 申请需使用 github-release / phinix-dll / active；工坊条目使用独立路线。 / Use the supported managed-DLL route.'
+    if code in ('CheckUnavailable', 'OriginUnavailable', 'OriginBudget'):
+        return '检查服务或上游暂不可用，维护者可重试并查看运行日志。 / A check/origin is unavailable; retry and inspect the run log.'
+    return ('请按错误代码核对 v3 包清单、文件摘要、程序集、本地化及固定 GitHub 资产；修正申请会重新检查。 / '
+            'Use the code to check the v3 manifest, file hashes, assemblies, localization and fixed asset. Edits trigger a new check.')
+
+
 def post(args):
     report = strict_json(args.report.read_bytes())
     number = report.get('issueNumber')
@@ -267,7 +289,17 @@ def post(args):
             '\n\nCode: `' + report['code'] + '`\n\nCandidate SHA-256: `' + (fingerprint or 'unavailable') +
             '`\n\n本报告不代表首次批准、源码与 DLL 一致性证明或游戏验收。当前 A1 只检查与报告，不自动上架。' +
             '\nThis report is not first-time approval, proof of source/binary correspondence, or in-game acceptance. A1 does not publish packages.')
+    if report['status'] == 'rejected':
+        author = issue.get('user', {}).get('login', '')
+        mention = '@' + author + ' ' if re.fullmatch(r'[A-Za-z0-9][A-Za-z0-9-]{0,38}', author) else ''
+        body += ('\n\n' + mention + failure_hint(report['code']) +
+                 '\n\n[申请示例 / Submission example](https://github.com/' + INDEX + '/blob/main/examples/managed-submission.json)')
+        run = os.environ.get('GITHUB_RUN_ID', '')
+        if re.fullmatch(r'[1-9][0-9]*', run):
+            body += '\n\n[运行日志 / Run log](https://github.com/' + INDEX + '/actions/runs/' + run + ')'
     api.json(prefix + '/comments', method='POST', data={'body': body})
+    if report['status'] == 'rejected':
+        api.json(prefix + '/labels', method='POST', data={'labels': [ERROR_LABEL]})
     print('Posted a report for the unchanged submission.')
     return 0
 

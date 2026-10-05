@@ -9,7 +9,7 @@ import subprocess
 import tempfile
 from datetime import datetime, timezone
 
-from bot import INDEX, SOURCE, GitHub, Rejected, require, strict_json, encode, digest, candidate_body, inspect
+from bot import INDEX, SOURCE, ERROR_LABEL, GitHub, Rejected, require, strict_json, encode, digest, candidate_body, inspect
 from admission import PREFIX, REPOSITORY_ID, OWNER_ID, event, maintainer, index, policy, paths, read_bundle, commit
 
 LABEL = 'plugin-approved'
@@ -254,8 +254,29 @@ def upstream(api):
     return str(run['id'])
 
 
+def published_issue(api, number):
+    """A successful job alone is not enough to close an issue: bind its published receipt."""
+    run = upstream(api); parent = index(api)
+    review_raw = read_at(api, 'label-approvals/' + run + '.json', parent); review = strict_json(review_raw)
+    validate_record(review)
+    require(review['issueNumber'] == number and review['approval']['runId'] == run, 'NotificationContextRejected')
+    lock = strict_json(read_at(api, 'approval-locks/' + run + '.json', parent))
+    require(lock == dict(schemaVersion=1, runId=run, candidateSha256=review['candidateSha256'],
+                         reviewSha256=digest(review_raw)), 'PublicationReceiptNotLocked')
+    stable = strict_json(read_at(api, 'stable.json', parent))
+    require(stable.get('sourceId') == SOURCE and
+            read_at(api, 'label-approvals/' + run + '.json', stable['snapshotId']) == review_raw,
+            'PublicationReceiptNotLocked')
+    issue = api.json(PREFIX + '/issues/' + str(number))
+    require('pull_request' not in issue and digest((issue.get('body') or '').encode()) == review['issueBodySha256'],
+            'SubmissionChanged')
+    return issue
+
+
 def feedback(api, stage, success):
     """Best effort notifications; a comment failure never changes committed approval/publication."""
+    number = None
+    verified_context = False
     try:
         data = payload()
         if stage == 'admission':
@@ -268,16 +289,38 @@ def feedback(api, stage, success):
             number = int(match.group(1))
         require(type(number) is int and number > 0 and str(data.get('repository', {}).get('id')) == REPOSITORY_ID,
                 'NotificationContextRejected')
+        verified_context = True
         link = 'https://github.com/' + INDEX + '/actions/runs/' + os.environ['GITHUB_RUN_ID']
         if stage == 'admission' and success:
             text = '批准标签已验证，静态复核及元数据 PR 自动合入完成。接下来自动发布，无需再次审批。'
         elif stage == 'publication' and success:
-            text = '自动复核和发布已完成，商店可刷新目录。无需再次审批。'
+            issue = published_issue(api, number)
+            text = '自动复核和发布已完成，正式索引已更新。申请自动关闭，无需再次审批。 / Published successfully; this submission is automatically closed.'
         else:
             text = '自动' + ('准入' if stage == 'admission' else '发布') + '未完成；请查看运行中的拒绝原因。商店 stable 指针未由失败任务更新。'
-        api.json(PREFIX + '/issues/' + str(number) + '/comments', 'POST', dict(body=text + '\n\n[运行日志](' + link + ')'))
-    except (Rejected, OSError, KeyError, TypeError, ValueError):
-        event('label_admission.feedback_failed', stage=stage)
+        issue_path = PREFIX + '/issues/' + str(number)
+        if not success:
+            api.json(issue_path + '/labels', 'POST', dict(labels=[ERROR_LABEL]))
+        api.json(issue_path + '/comments', 'POST', dict(body=text + '\n\n[运行日志 / Run log](' + link + ')'))
+        if stage == 'publication' and success:
+            if any(label.get('name') == ERROR_LABEL for label in issue.get('labels', [])):
+                api.json(issue_path + '/labels/' + ERROR_LABEL, 'DELETE')
+            latest = api.json(issue_path)
+            require('pull_request' not in latest and (latest.get('body') or '') == (issue.get('body') or ''), 'SubmissionChanged')
+            if latest.get('state') == 'open':
+                api.json(issue_path, 'PATCH', dict(state='closed', state_reason='completed'))
+            event('label_admission.issue_closed', issueNumber=number, approvalRunId=str(data['workflow_run']['id']))
+    except (Rejected, OSError, KeyError, TypeError, ValueError) as error:
+        reason = str(error) if isinstance(error, Rejected) and re.fullmatch(r'[A-Za-z0-9]+', str(error)) else 'NotificationUnavailable'
+        event('label_admission.feedback_failed', stage=stage, reason=reason)
+        if verified_context and type(number) is int and number > 0:
+            try:
+                api.json(PREFIX + '/issues/' + str(number) + '/labels', 'POST', dict(labels=[ERROR_LABEL]))
+                api.json(PREFIX + '/issues/' + str(number) + '/comments', 'POST', dict(body=
+                    '回报或关闭申请未完成 / Notification or closure incomplete. Code: `' + reason + '`.\n\n'
+                    '[运行日志 / Run log](https://github.com/' + INDEX + '/actions/runs/' + os.environ['GITHUB_RUN_ID'] + ')'))
+            except (Rejected, OSError, KeyError, TypeError, ValueError):
+                pass
 
 
 def main():

@@ -1,6 +1,6 @@
 # GitHub index bot operations
 
-2026-10-05: Normal admission now uses one maintainer `plugin-approved` Issue label, automatic evidence PR merge and automatic publication. See [current operations](ControlledPublication.md). Older future-tense A2/A4 notes below are historical; A3 remains pending.
+2026-10-05: Normal admission now uses one maintainer `plugin-approved` Issue label, automatic evidence PR merge, automatic publication and closing. Failures receive `plugin-error`; static reports provide corrective guidance to the submitter. See [current operations](ControlledPublication.md). Older future-tense A2/A4 notes below are historical; A3 remains pending.
 
 
 [中文](GitHubBotGuide.zh-CN.md). 2026-10-05. Repository: [HunYuan2333/Phinix-Plugin-Index](https://github.com/HunYuan2333/Phinix-Plugin-Index).

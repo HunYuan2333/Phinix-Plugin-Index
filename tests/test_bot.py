@@ -106,6 +106,32 @@ class IntakeTests(unittest.TestCase):
             bad = copy.deepcopy(catalog); bad['packages'][0]['artifact']['tag'] = 'v9.9.9'
             self.assertNotEqual(run(bad), 0)
 
+    def test_invalid_format_mentions_author_with_help_and_error_label(self):
+        body = '### Candidate JSON\n{bad json}'
+        report = dict(schemaVersion=1, issueNumber=7, status='rejected', code='InvalidJson', issueUpdatedAt='date',
+                      issueBodySha256=bot.digest(body.encode()))
+        writes = []
+        class Api:
+            def json(self, path, method='GET', data=None):
+                if method == 'GET':
+                    return dict(state='open', updated_at='date', body=body, user=dict(login='Submitter'))
+                writes.append((path, data)); return {}
+        with tempfile.TemporaryDirectory() as temporary, patch.object(bot, 'GitHub', Api):
+            path = Path(temporary) / 'report.json'; path.write_bytes(bot.encode(report))
+            self.assertEqual(bot.post(type('Args', (), dict(report=path))()), 0)
+        self.assertIn('@Submitter', writes[0][1]['body'])
+        self.assertIn('JSON 语法', writes[0][1]['body'])
+        self.assertIn('Submission example', writes[0][1]['body'])
+        self.assertTrue(writes[1][0].endswith('/labels'))
+        self.assertEqual(writes[1][1], dict(labels=['plugin-error']))
+
+    def test_format_hints_distinguish_envelope_fence_origin_and_limits(self):
+        self.assertIn('### Candidate JSON', bot.failure_hint('MissingCandidateJson'))
+        self.assertIn('代码块', bot.failure_hint('InvalidCandidateFence'))
+        self.assertIn('schemaVersion', bot.failure_hint('SubmissionEnvelope'))
+        self.assertIn('字符串', bot.failure_hint('InvalidOriginId'))
+        self.assertIn('大小限制', bot.failure_hint('PayloadLimit'))
+
 
 if __name__ == '__main__':
     unittest.main()

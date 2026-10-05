@@ -7,7 +7,7 @@
 1. 审阅申请、作者源码及 Plugin intake 报告。静态通过不能证明运行安全或源码与 DLL 对应关系。
 2. 用仓库 **admin 或 maintainer** 身份，给已审阅的开放申请 Issue 加 **`plugin-approved`** 标签。这是日常唯一的人工批准操作。
 3. 可信 **Plugin label admission** 将事件正文绑定到规范化候选指纹及具体标签事件/审核者数字 ID，重新核验公开上游、ZIP、PE、本地化，不执行作者代码；自动创建证据 PR，并指定准确 head SHA 自动合入。
-4. 准入成功后，**Plugin controlled publication** 自动复核批准来源、PR 内容、资产字节和完整包/模块依赖闭包，发布不可变目录并原子更新 stable。Issue 评论提供两次运行链接；无需再次审批、合 PR 或手动启动发布。
+4. 准入成功后，**Plugin controlled publication** 自动复核批准来源、PR 内容、资产字节和完整包/模块依赖闭包，发布不可变目录并原子更新 stable。Issue 评论提供两次运行链接；发布成功后核验已加锁凭据/当前目录及未变化正文，再自动关闭申请并清除 `plugin-error`。准入或发布失败加 `plugin-error`，保持开放。无需再次审批、合 PR 或手动启动发布。
 
 人工测试命令：
 
@@ -18,6 +18,8 @@ gh run list --repo HunYuan2333/Phinix-Plugin-Index --workflow plugin-publish.yml
 ```
 
 发布前正文变化、Issue 关闭、移除或重新添加标签，会使待发布批准失效。修正申请后移除再添加标签授权新运行；**重新运行旧准入尝试会被拒绝**。普通 write 协作者或机器人加标签、任意评论/标签、过期事件不能批准。发布后版本和审核锁不可变，历史申请修改/撤标签不会撤销已发布版本。
+
+静态检查失败会在未变化的申请下 @发布者，给出错误代码、格式修正说明、示例和运行日志，并加 `plugin-error`。修正申请会触发重新检查；异常标签直到最终成功发布才清除。回报/关闭异常也会尽力标记并留日志，不改变已提交的发布结果。
 
 ## 证据与权限
 
@@ -54,4 +56,4 @@ dotnet build Extensions/PluginStore/RepositoryAutomation/Validator/Validator.csp
 python3 -m unittest discover -s Extensions/PluginStore/RepositoryAutomation/tests -v
 ```
 
-索引仓库对应路径为 `Validator/Validator.csproj` 和 `tests`。47 项回归覆盖准确人工/标签批准、操作者/事件身份、正文变化/撤标/重新加标、自动合入范围/head、成功运行与机器人证明、不可变版本/凭据锁、workflow_run 来源、上传后复核、回报和原子发布恢复。远端真人加标签是独立验收步骤；控制台/Actions 检查不代表游戏验证。
+索引仓库对应路径为 `Validator/Validator.csproj` 和 `tests`。52 项回归覆盖准确人工/标签批准、操作者/事件身份、正文变化/撤标/重新加标、自动合入范围/head、成功运行与机器人证明、不可变版本/凭据锁、workflow_run 来源、上传后复核、回报和原子发布恢复。远端真人加标签是独立验收步骤；控制台/Actions 检查不代表游戏验证。

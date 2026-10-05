@@ -210,6 +210,46 @@ class LabelAdmissionTests(unittest.TestCase):
              patch.object(api, 'json', side_effect=bot.Rejected('Denied')):
             labels.feedback(api, 'admission', True)
 
+    def test_failed_admission_or_publication_marks_error_and_keeps_issue_open(self):
+        for stage in ('admission', 'publication'):
+            api = LabelApi(); data = webhook() if stage == 'admission' else dict(webhook(),
+                workflow_run=dict(display_title='Label admission #4', id=123))
+            with patch.object(labels, 'payload', return_value=data), patch.dict(os.environ, CONTEXT, clear=True):
+                labels.feedback(api, stage, False)
+            self.assertEqual(api.writes[0][2], dict(labels=['plugin-error']))
+            self.assertFalse(any(method == 'PATCH' for _, method, _ in api.writes))
+            self.assertTrue(any(path.endswith('/comments') for path, _, _ in api.writes))
+
+    def test_success_closes_only_after_verifying_published_receipt(self):
+        api = LabelApi(); api.issues[0]['labels'].append(dict(name='plugin-error'))
+        data = dict(webhook(), workflow_run=dict(display_title='Label admission #4', id=123))
+        with patch.object(labels, 'payload', return_value=data), patch.dict(os.environ, CONTEXT, clear=True), \
+             patch.object(labels, 'published_issue', return_value=api.issues[0]) as verified:
+            labels.feedback(api, 'publication', True)
+        verified.assert_called_once_with(api, 4)
+        self.assertEqual(api.writes[-1], (admission.PREFIX + '/issues/4', 'PATCH', dict(state='closed', state_reason='completed')))
+        self.assertTrue(any(method == 'DELETE' and path.endswith('/plugin-error') for path, method, _ in api.writes))
+        api = LabelApi()
+        with patch.object(labels, 'payload', return_value=data), patch.dict(os.environ, CONTEXT, clear=True), \
+             patch.object(labels, 'published_issue', side_effect=bot.Rejected('PublicationReceiptNotLocked')):
+            labels.feedback(api, 'publication', True)
+        self.assertFalse(any(method == 'PATCH' for _, method, _ in api.writes))
+        self.assertEqual(api.writes[0][2], dict(labels=['plugin-error']))
+
+    def test_publication_closure_requires_lock_stable_snapshot_and_unchanged_body(self):
+        candidate, review, scope = label_bundle(True); api = LabelApi(); raw = bot.encode(review)
+        api.content = {'label-approvals/123.json': raw, 'approval-locks/123.json': bot.encode(dict(schemaVersion=1,
+            runId='123', candidateSha256=FINGERPRINT, reviewSha256=bot.digest(raw))),
+            'stable.json': bot.encode(dict(sourceId=bot.SOURCE, snapshotId=HEAD))}
+        with patch.object(labels, 'upstream', return_value='123'):
+            self.assertEqual(labels.published_issue(api, 4)['state'], 'open')
+            api.issues[0]['body'] += ' edit'
+            with self.assertRaisesRegex(bot.Rejected, 'SubmissionChanged'): labels.published_issue(api, 4)
+            api.issues[0]['body'] = BODY
+            api.content['approval-locks/123.json'] = bot.encode(dict(schemaVersion=1, runId='123',
+                candidateSha256=FINGERPRINT, reviewSha256='0' * 64))
+            with self.assertRaisesRegex(bot.Rejected, 'PublicationReceiptNotLocked'): labels.published_issue(api, 4)
+
     def test_label_publication_commits_receipt_lock_and_rechecks_after_upload(self):
         for revoked in (False, True):
             records = [label_bundle()]; candidate, review, scope = records[0]; api = LabelApi()
