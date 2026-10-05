@@ -7,7 +7,7 @@
 1. Review the submission, source and Plugin intake report. Static checks do not prove code safety or source/binary correspondence.
 2. On that open submission Issue, add **`plugin-approved`** as a repository **admin or maintainer**. This is the only routine human approval action.
 3. The trusted **Plugin label admission** workflow binds the webhook body to a canonical candidate fingerprint and the specific label event/reviewer IDs. It rechecks public origin, ZIP, PE and localization without executing author code, creates an evidence-only PR and merges it automatically with an exact head SHA.
-4. On successful completion, **Plugin controlled publication** automatically rechecks approval provenance, PR contents, artifact bytes and complete package/module dependency closure, then publishes an immutable catalog and updates stable atomically. Issue comments link to both runs. No additional human review, PR merge or workflow dispatch is required.
+4. On successful completion, **Plugin controlled publication** automatically rechecks approval provenance, PR contents, artifact bytes and complete package/module dependency closure, then publishes an immutable catalog and updates stable atomically. Issue comments link to both runs. Successful publication verifies the locked receipt/current catalog and unchanged body, then closes the Issue and clears `plugin-error`. Failed admission/publication adds `plugin-error` and leaves it open. No additional human review, PR merge or workflow dispatch is required.
 
 Example human test:
 
@@ -18,6 +18,8 @@ gh run list --repo HunYuan2333/Phinix-Plugin-Index --workflow plugin-publish.yml
 ```
 
 If the candidate changes, the Issue closes, or the label is removed/re-added before publication, pending approval is invalidated. Fix the application and remove/re-add the label to authorize a new run; **re-running an old admission attempt is rejected**. Labels applied by a write-only collaborator or bot, arbitrary comments/labels, and stale events never authorize publication. Once published, the accepted version and approval locks remain immutable; later Issue edits or label changes do not revoke historical releases.
+
+Static failures mention the submitter on the unchanged Issue with the code, corrective guidance, example and run link, and add `plugin-error`. Edits trigger a new check; the error label clears only on successful publication. Notification/closure failures also attempt an error tag/comment and never undo committed publication.
 
 ## Evidence and permissions
 
@@ -54,4 +56,4 @@ dotnet build Extensions/PluginStore/RepositoryAutomation/Validator/Validator.csp
 python3 -m unittest discover -s Extensions/PluginStore/RepositoryAutomation/tests -v
 ```
 
-In the index repository use `Validator/Validator.csproj` and `tests`. 47 regressions cover exact manual and label approval, actor/event identity, edits/removal/readdition, automatic merge scope/head, successful-run and bot proof, immutable version/receipt locks, workflow-run provenance, rechecking after upload, notifications and atomic publication recovery. Remote human labeling is a distinct acceptance step; console/Actions checks are not in-game validation.
+In the index repository use `Validator/Validator.csproj` and `tests`. 52 regressions cover exact manual and label approval, actor/event identity, edits/removal/readdition, automatic merge scope/head, successful-run and bot proof, immutable version/receipt locks, workflow-run provenance, rechecking after upload, notifications and atomic publication recovery. Remote human labeling is a distinct acceptance step; console/Actions checks are not in-game validation.
