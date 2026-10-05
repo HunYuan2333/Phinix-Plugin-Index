@@ -105,6 +105,7 @@ def collect(args, api, snapshot):
     require(sum(c['package']['artifact']['sizeBytes'] for c, _, _ in records) <= 512 * 1024 * 1024, 'PublicationPayloadLimit')
     for candidate, review, scope in records:
         package = candidate['package']
+        event('publication.approval_started', packageId=package['id'], candidateSha256=review['candidateSha256'])
         approval_proof(api, package, review, scope, candidate, snapshot)
         if review['candidateSha256'] not in {strict_json(v)['candidateSha256'] for v in old_locks.values()}:
             current = api.json(PREFIX + '/issues/' + str(review['issueNumber']))
@@ -196,6 +197,7 @@ def publish(args, api):
             os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch', 'PublicationContextRejected')
     snapshot = os.environ.get('GITHUB_SHA', '')
     require(re.fullmatch(r'[0-9a-f]{40}', snapshot), 'TrustedHeadChanged')
+    event('publication.started', snapshotId=snapshot, checkOnly=args.check_only)
     maintainer(api, os.environ.get('GITHUB_TRIGGERING_ACTOR'), None)
     current = index(api)
     if current != snapshot:

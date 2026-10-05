@@ -4,6 +4,7 @@ import argparse
 import os
 from pathlib import Path
 import re
+import subprocess
 import tempfile
 from datetime import datetime, timezone
 
@@ -13,10 +14,14 @@ REPOSITORY_ID = '1402564805'
 OWNER_ID = '64630568'
 PREFIX = '/repos/' + INDEX
 WORKFLOW = '.github/workflows/plugin-admission.yml'
+sequence = 0
 
 
 def event(title, **fields):
-    print(encode(dict(schemaVersion=1, event=title, **fields)).decode(), end='', flush=True)
+    global sequence
+    sequence += 1
+    print(encode(dict(schemaVersion=1, component='index-bot', event=title, sequence=sequence,
+                     time=datetime.now(timezone.utc).isoformat(), runId=os.environ.get('GITHUB_RUN_ID'), **fields)).decode(), end='', flush=True)
 
 
 def maintainer(api, login, identity=None):
@@ -60,6 +65,7 @@ def prepare(args, api):
             os.environ.get('GITHUB_RUN_ATTEMPT') == '1' and
             os.environ.get('GITHUB_TRIGGERING_ACTOR') == os.environ.get('GITHUB_ACTOR'), 'ApprovalContextRejected')
     require(re.fullmatch(r'[0-9a-f]{64}', args.candidate_sha256) and args.issue_number > 0, 'InvalidApprovalInput')
+    event('admission.started', issueNumber=args.issue_number, candidateSha256=args.candidate_sha256)
     head = index(api)
     require(head == os.environ.get('GITHUB_SHA'), 'TrustedHeadChanged')
     actor = os.environ['GITHUB_ACTOR']; actor_id = maintainer(api, actor, os.environ.get('GITHUB_ACTOR_ID'))
@@ -69,6 +75,7 @@ def prepare(args, api):
     body = issue.get('body') or ''; package = candidate_body(body)
     candidate = dict(schemaVersion=1, package=package)
     require(digest(encode(candidate)) == args.candidate_sha256, 'CandidateFingerprintMismatch')
+    event('admission.candidate_started', issueNumber=args.issue_number, packageId=package['id'], version=package['manifest']['version'])
     with tempfile.TemporaryDirectory() as temporary:
         static = inspect(args, package, Path(temporary), api)
     current = api.json(issue_path)
@@ -85,7 +92,7 @@ def prepare(args, api):
     for name, value in (('candidate.json', candidate), ('review.json', record), ('policy.json', scope)):
         (args.output / name).write_bytes(encode(value))
     event('admission.prepared', candidateSha256=args.candidate_sha256, issueNumber=args.issue_number,
-          runId=record['approval']['runId'], packageId=package['id'], version=package['manifest']['version'])
+          packageId=package['id'], version=package['manifest']['version'])
 
 
 def read_bundle(root):
@@ -153,7 +160,7 @@ def main():
     args = parser.parse_args()
     try:
         (prepare if args.command == 'prepare' else open_pr)(args, GitHub(max_calls=48, timeout=480))
-    except (Rejected, OSError, KeyError, TypeError, ValueError) as error:
+    except (Rejected, OSError, KeyError, TypeError, ValueError, subprocess.TimeoutExpired) as error:
         event('admission.rejected', reason=str(error) if isinstance(error, Rejected) else 'InvalidApprovalData')
         raise SystemExit(1)
 
