@@ -1,5 +1,10 @@
 # Phinix 插件索引
 
+## 插件申请机器人（A1）
+
+现提供 GitHub Actions 申请表、固定资产 ZIP/PE 静态校验和 Issue 自动报告；本轮不批准或上架插件。首次人工批准、后续版本自动跟踪与目录发布按 A2–A4 接续。见[机器人操作说明](GitHubBotGuide.zh-CN.md) / [English](GitHubBotGuide.md)。下方初始化状态保留为历史说明。
+
+
 [English](README.md)
 
 这是 Phinix 公开插件索引的开发初始化仓库，保存审核元数据及索引快照。作者在自己的仓库发布源码和二进制包；工坊条目链接到 Steam。
