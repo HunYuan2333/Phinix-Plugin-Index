@@ -94,6 +94,29 @@ def continuity(old, new):
     require(all(path in new and raw == new[path] for path, raw in old.items()), 'AcceptedVersionChanged')
 
 
+def player_records(root, records, old_locks):
+    """Maintainer-owned listing exclusions; never alter accepted bytes or historical locks."""
+    path = root / 'catalog-exclusions.json'
+    if not path.exists():
+        return records
+    require(path.is_file() and not path.is_symlink() and path.stat().st_size <= 16384, 'CatalogExclusionRejected')
+    raw = path.read_bytes(); policy = strict_json(raw)
+    require(type(policy) is dict and set(policy) == {'schemaVersion', 'packageIds', 'reason'} and
+            type(policy['schemaVersion']) is int and policy['schemaVersion'] == 1 and
+            type(policy['packageIds']) is list and len(policy['packageIds']) <= 32 and
+            all(type(v) is str and len(v) <= 128 and re.fullmatch(r'[a-z0-9]+(?:[._-][a-z0-9]+)*', v)
+                for v in policy['packageIds']) and len(set(policy['packageIds'])) == len(policy['packageIds']) and
+            type(policy['reason']) is str and 1 <= len(policy['reason'].strip()) <= 1024, 'CatalogExclusionRejected')
+    ids = set(policy['packageIds']); known = {c['package']['id'] for c, _, _ in records}
+    require(ids <= known, 'CatalogExclusionUnknownPackage')
+    published = {strict_json(v)['candidateSha256'] for v in old_locks.values()}
+    require(all(r['candidateSha256'] in published for c, r, _ in records if c['package']['id'] in ids),
+            'CatalogExclusionUnpublished')
+    visible = [r for r in records if r[0]['package']['id'] not in ids]
+    event('publication.listing_exclusions', policySha256=digest(raw), excludedPackages=len(ids), visibleVersions=len(visible))
+    return visible
+
+
 def collect(args, api, snapshot):
     candidates = files(args.root, 'packages'); reviews = files(args.root, 'reviews'); scopes = files(args.root, 'policies')
     require(candidates and len(candidates) <= MAX_RECORDS, 'NoApprovedPackages')
@@ -242,13 +265,14 @@ def publish(args, api):
     require(source == dict(schemaVersion=1, sourceId=SOURCE, repository=INDEX), 'IndexIdentityMismatch')
     records, locks, old_locks = collect(args, api, snapshot)
     approval_locks, old_approval_locks, pending = label_receipts(args, api, snapshot, records, old_locks, trigger)
+    visible = player_records(args.root, records, old_locks)
     raw = encode(dict(schemaVersion=3, sourceId=SOURCE, snapshotId=snapshot,
-                      packages=[c['package'] for c, _, _ in sorted(records, key=lambda r: (r[0]['package']['id'], r[0]['package']['manifest']['version']))]))
+                      packages=[c['package'] for c, _, _ in sorted(visible, key=lambda r: (r[0]['package']['id'], r[0]['package']['manifest']['version']))]))
     require(len(raw) <= 2 * 1024 * 1024, 'DocumentLimit')
     with tempfile.TemporaryDirectory() as temporary:
         path = Path(temporary) / 'catalog.json'; path.write_bytes(raw)
         validator(args, ['publication', SOURCE, str(path)])
-    event('publication.catalog_verified', snapshotId=snapshot, sha256=digest(raw), packages=len(records), bytes=len(raw))
+    event('publication.catalog_verified', snapshotId=snapshot, sha256=digest(raw), packages=len(visible), bytes=len(raw))
     if args.check_only:
         event('publication.check_complete', snapshotId=snapshot); return
     artifact = release_asset(api, snapshot, raw)

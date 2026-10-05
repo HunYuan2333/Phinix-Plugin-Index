@@ -1,5 +1,7 @@
 # Admission and controlled publication
 
+Pre-launch cleanup: the official index does not list Playtest. Maintainers own `catalog-exclusions.json` on main; it excludes listings from new catalogs without changing accepted versions, ZIPs, approvals or publication locks. Publication still rechecks all approved records/artifacts and then verifies the complete visible dependency closure; an empty catalog is valid. Exclusions cannot authorize unpublished versions. Keep the developer fixture only in its standalone repository. The player client offers only GitHub/CF access to the official index. Keep historical snapshots for audit.
+
 [中文](ControlledPublication.zh-CN.md). 2026-10-05. The normal path is one maintainer approval label followed by automatic A2/A4. A3 version monitoring remains disabled.
 
 ## Maintainer action
@@ -47,7 +49,7 @@ gh workflow run plugin-publish.yml --repo HunYuan2333/Phinix-Plugin-Index --ref 
 
 The former exact-fingerprint `Plugin admission` dispatch remains available for recovery of the already accepted manual path; those records still require a human-merged exact three-file PR. Label records allow only the fixed GitHub Actions bot to create and merge the PR. Neither path grants approval authority to arbitrary bot merges.
 
-Pilot limits: eight version records, eight label receipts, 400 Issue history events, 512 MiB aggregate ZIP bytes, 512 publisher API calls and a 25-minute API deadline, plus existing per-file/package limits. Expansion is a separate task. All downloaded author DLLs are inspected statically, never loaded. Client-side host/game/CLR compatibility checks still apply. Official output is `phinix.official`; the game's current default remains `phinix.managed`.
+Pilot limits: eight version records, eight label receipts, 400 Issue history events, 512 MiB aggregate ZIP bytes, 512 publisher API calls and a 25-minute API deadline, plus existing per-file/package limits. Expansion is a separate task. All downloaded author DLLs are inspected statically, never loaded. Client-side host/game/CLR compatibility checks still apply. Official output and the player client default are `phinix.official`.
 
 ## Validation
 

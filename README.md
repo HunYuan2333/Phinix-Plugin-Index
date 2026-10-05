@@ -1,47 +1,11 @@
 # Phinix Plugin Index
 
-## Plugin intake bot (A1)
+[中文](README.zh-CN.md). The official Phinix managed-plugin catalog. Authors keep source and fixed DLL ZIP releases in their own public repositories; this repository stores reviewed metadata and immutable catalog snapshots.
 
-The application form, fixed-release ZIP/PE checks and automatic issue reports are now provided by GitHub Actions. No packages have been approved or published by this bootstrap. First-time approvals, automatic version tracking and catalog publishing follow in A2–A4. See [bot operations](GitHubBotGuide.md) / [中文](GitHubBotGuide.zh-CN.md). Earlier initialization text below is historical.
+Submit through the Plugin submission Issue form. Maintainers approve the exact candidate by adding `plugin-approved`; trusted checks create/merge an audit PR and publish automatically. Publication closes the Issue; failures keep it open with `plugin-error` and author guidance. Close an unapproved Issue to reject it. [Author and bot guide](GitHubBotGuide.md) · [Maintainer publication guide](ControlledPublication.md).
 
+The official source is `phinix.official`. Player clients default to GitHub direct and can switch to CF acceleration for the same catalog. `stable.json` points to the current immutable schema-v3 catalog Release; files on a development branch and test fixtures are not player publication.
 
-[中文说明](README.zh-CN.md)
+The Playtest developer fixture is excluded from the player catalog. It remains independently available in [Phinix-PluginStore-PoC](https://github.com/HunYuan2333/Phinix-PluginStore-PoC). An empty official catalog is expected until a real plugin is admitted. Approved fixture records and historical snapshots remain for audit, not as store listings. Maintainers own `catalog-exclusions.json`; exclusions never rewrite approved artifacts/locks and publication validates the visible dependency closure.
 
-Development bootstrap for the public Phinix plugin catalog. This repository stores
-reviewed metadata and catalog snapshots. Authors publish source and binary packages
-in their own repositories. Workshop entries link to Steam.
-
-**Current status: initialization only, zero approved packages.** The client currently
-supports local catalog preview and static payload validation. GitHub transport,
-installation, Steam actions and automated review/publication are still being built.
-Creating this repository does not make the store ready for online installation.
-
-| Path | Purpose |
-| --- | --- |
-| `source.json` | Development source identity: `phinix.official` |
-| `packages/` | Approved package metadata; currently empty |
-| `reviews/` | Candidate fingerprints and approval records; currently empty |
-| `scripts/build-empty-catalog.py` | Generate an empty schema-v1 catalog and its SHA-256 |
-| `catalog.json` | Initial empty catalog; client-readable, not an index Release |
-| `catalog.json.sha256` | SHA-256 of the exact initial catalog bytes |
-
-The bootstrap generator is intentionally restricted to an empty package collection.
-It fails if any package JSON exists; it is not the final package/review validator.
-
-```bash
-python3 scripts/build-empty-catalog.py --snapshot <index-source-commit-sha>
-```
-
-Generated files go into ignored `dist/`. Run this after committing the source inputs;
-`snapshotId` identifies that source commit, not the generated file's self-referential
-commit. The checked-in initial catalog is a preview fixture. No `stable.json` is
-published until a real catalog Release succeeds.
-
-The planned release flow is: validate an approved source commit, generate
-`catalog.json` and its checksum, publish a fixed catalog Release, verify the uploaded
-assets, then update `stable.json`. Clients will consume released snapshots. Branch
-updates and CI artifacts do not constitute approval or publication.
-
-Do not upload credentials, game/Unity assemblies, server state, or author binaries to
-this index. Listing and metadata validation are not a certification of code safety.
-Client/framework development lives in [Phinix Rework](https://github.com/HunYuan2333/Phinix-Rework).
+Workflows, trusted Validator sources and regression fixtures are maintenance infrastructure. Do not upload credentials, author binaries, game/Unity DLLs or server state. Metadata approval is not certification of code safety. [Client development](https://github.com/HunYuan2333/Phinix-Rework).
