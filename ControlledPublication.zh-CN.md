@@ -1,50 +1,57 @@
 # 准入与受控发布
 
-[English](ControlledPublication.md)。2026-10-05，A2 与手动触发的 A4；尚未启用 A3 定时追踪。
+[English](ControlledPublication.md)。2026-10-05。正常流程改为维护者加一次批准标签，后续 A2/A4 自动完成；A3 版本追踪仍未启用。
 
-可信索引工作流批准一个确定的候选，把永久证据写入仅含元数据的 PR，只发布已合入的记录。检查通过、Issue 标签和评论都不等于批准。两条工作流都不会检出或执行作者代码。游戏当前测试源仍是 `phinix.managed`，正式索引输出使用 `phinix.official`。
+## 维护者操作
 
-## 需要维护者亲测的流程
+1. 审阅申请、作者源码及 Plugin intake 报告。静态通过不能证明运行安全或源码与 DLL 对应关系。
+2. 用仓库 **admin 或 maintainer** 身份，给已审阅的开放申请 Issue 加 **`plugin-approved`** 标签。这是日常唯一的人工批准操作。
+3. 可信 **Plugin label admission** 将事件正文绑定到规范化候选指纹及具体标签事件/审核者数字 ID，重新核验公开上游、ZIP、PE、本地化，不执行作者代码；自动创建证据 PR，并指定准确 head SHA 自动合入。
+4. 准入成功后，**Plugin controlled publication** 自动复核批准来源、PR 内容、资产字节和完整包/模块依赖闭包，发布不可变目录并原子更新 stable。Issue 评论提供两次运行链接；无需再次审批、合 PR 或手动启动发布。
 
-1. 在 Plugin submission 表单提交现有 `examples/managed-submission.json`。等待 Plugin intake 通过，从报告复制完整的 64 位候选 SHA-256，并审阅作者源代码和静态 CLR 引用。静态校验不能证明源码与二进制对应关系或运行安全。
-2. 用 admin 或 maintainer 身份，在 `main` 上运行 **Plugin admission**，填真实 Issue 编号和准确指纹。机器人重新核验 Release、Tag、源码、资产、ZIP、本地化。成功后创建 `codex/admission-RUN_ID` 和只新增三个 JSON 的 PR：候选、审核及静态证据、仅手动批准的策略；不会修改 stable。错误指纹、修改的申请、其他分支、重新运行旧批准或无权审核者都会失败。
-3. 审阅 PR：检查仓库与所有者数字 ID、版本、SHA-256、模块/程序集身份、依赖 ID、语言显示和永久审核证据。用 admin 或 maintainer 身份合入，不修改这三个文件；拒绝则关闭。更正申请后须重新检查并发起新的准入运行。
-4. 运行 **Plugin controlled publication**，先选 `check_only=true`。它核验成功的可信准入运行、准确合入的 PR 内容、真人合入者权限，再重新校验上游/ZIP/PE、策略、已发布版本锁和完整包/模块依赖闭包。通过后选 `check_only=false` 发布。
-5. 确认日志结束于 `publication.stable_committed`，检查 `stable.json`、不可变的 `published/SNAPSHOT.json` 和固定 `catalog-v3-SNAPSHOT` Release。失败时旧入口保留；排查请提供运行编号和 stable 快照。首次人工准入后继续验收 GitHub 与 CF 的实际客户端下载，完成前不启用自动发布。
+人工测试命令：
 
 ```sh
-# ISSUE 和 FINGERPRINT 替换为你已审阅报告中的值。
-gh workflow run plugin-admission.yml --repo HunYuan2333/Phinix-Plugin-Index --ref main -f issue_number=ISSUE -f candidate_sha256=FINGERPRINT
-gh run list --repo HunYuan2333/Phinix-Plugin-Index --workflow plugin-admission.yml --limit 5
-# 审阅并合入生成的准入 PR 后：
+gh issue edit ISSUE --repo HunYuan2333/Phinix-Plugin-Index --add-label plugin-approved
+gh run list --repo HunYuan2333/Phinix-Plugin-Index --workflow plugin-label-admission.yml --limit 5
+gh run list --repo HunYuan2333/Phinix-Plugin-Index --workflow plugin-publish.yml --limit 5
+```
+
+发布前正文变化、Issue 关闭、移除或重新添加标签，会使待发布批准失效。修正申请后移除再添加标签授权新运行；**重新运行旧准入尝试会被拒绝**。普通 write 协作者或机器人加标签、任意评论/标签、过期事件不能批准。发布后版本和审核锁不可变，历史申请修改/撤标签不会撤销已发布版本。
+
+## 证据与权限
+
+新版本只新增四个元数据文件：`packages/包ID哈希/候选哈希.json`、`reviews/...`、`policies/...` 和 `label-approvals/运行ID.json`。审核记录绑定源、规范化候选与 Issue 正文哈希、审核者/数字 ID、标签名称/事件 ID/时间、可信工作流/运行/提交/尝试、静态报告及策略哈希。策略固定仓库/作者 ID、渠道、管理方式、程序集/模块身份和依赖 ID；**manual-only** 表示每个版本仍需批准，批准后自动完成其余步骤。A3 自动版本准入需要另行实现。
+
+完全相同的已发布候选只新增一份标签批准凭据，重新检查同一包，发布只有一个条目的新快照；保留原审核记录、版本锁和 DLL 资产。相同包 ID/版本的不同候选直接拒绝。发布时加入不可变 `approval-locks/运行ID.json`，绑定凭据哈希。这样可以用 Playtest 1.3.0 测试新标签流程而不覆盖已接受版本。
+
+默认工作流权限保持只读。检查任务只读；准入任务仅为证据 PR 和自动合入申请 contents/PR 写权限；发布任务为目录/锁/stable 申请 contents 写权限；回报任务申请 issues 写权限。流程不提交批准 PR review。GitHub 合并提供的创建/批准设置已启用以允许创建 PR；无需新 PAT、App 或服务器。CF 使用独立的只读回源 token。[GitHub 设置说明](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository)。
+
+发布器用 `workflow_run` 衔接已成功完成的可信标签准入，重新核验真实运行身份，并要求其专属凭据已在输入树中。只检出固定的默认 main 提交，不检出作者代码或消费上游工件。[GitHub workflow_run](https://docs.github.com/en/actions/reference/workflows-and-actions/events-that-trigger-workflows#workflow_run)。
+
+## 原子发布与恢复
+
+准入与发布共用 `index-metadata` 串行队列，不取消运行。自动合 PR 前检查当前 main 和最新批准。发布器检查完整 v3 闭包、创建固定草稿 `catalog-v3-快照` Release、无覆盖上传、下载核验字节/哈希/大小和源码身份后公开 Release。最终一个禁止强制的 Git 更新同时提交不可变 published、版本/审核锁与 `stable.json`。并发修改会阻止旧输入写入；未引用的已上传快照不会替换玩家入口。
+
+发布器复用匹配的部分上传。若 stable 已提交而成功响应丢失，重试核验准确的直接子发布提交及资产，输出 `publication.already_complete`，不写入。评论回报失败不会把已提交操作改判失败。准入失败可能留下未合入的证据 PR，重试前检查对应运行。已合入但未发布的凭据若正文/标签变化会阻止发布，需处理该准确的待发布批准；不要绕过拒绝或修改已接受的锁。
+
+保留手动故障恢复入口，但它不是日常审批步骤：
+
+```sh
 gh workflow run plugin-publish.yml --repo HunYuan2333/Phinix-Plugin-Index --ref main -f check_only=true
-# 上一步通过后再执行：
+# 上一步通过后：
 gh workflow run plugin-publish.yml --repo HunYuan2333/Phinix-Plugin-Index --ref main -f check_only=false
 ```
 
-不需要新 token。仓库默认工作流权限仍为只读。启用 GitHub 合并提供的“允许 GitHub Actions 创建和批准 PR”设置以允许机器人创建 PR；我们的流程不提交批准评论，发布必须验证真人合入者。仅提案任务申请 contents/PR 写权限，仅发布任务申请 contents 写权限，检查任务为只读。CF 只读 token 独立使用。[GitHub 设置说明](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/enabling-features-for-your-repository/managing-github-actions-settings-for-a-repository)。
+旧准确指纹的 `Plugin admission` 手动入口保留用于已接受人工路径的恢复；其记录仍要求真人合入准确的三个文件 PR。标签记录只允许固定的 GitHub Actions 机器人创建和合入证据 PR，不把任意机器人合入视为批准。
 
-## 永久记录与策略
+试运行限制：八个版本记录、八份标签凭据、400 条 Issue 历史事件、总 ZIP 512 MiB、发布器 512 次 API 调用及 25 分钟 API 期限，另有每文件/包限制；扩容单独实施。作者 DLL 仅静态检查，不加载执行；客户端继续检查宿主/游戏版本和实际 CLR 兼容。正式源是 `phinix.official`，游戏默认仍为 `phinix.managed`。
 
-路径使用包 ID 的 SHA-256 和候选 SHA-256，每个批准版本在 `packages`、`reviews`、`policies` 各存一个文件。证据记录源 ID、规范化候选哈希、Issue 编号/正文哈希/修改时间、批准 UTC 时间、审核者登录名/数字 ID、可信工作流/运行/提交/尝试次数、完整静态报告及哈希、策略哈希。策略固定公开仓库/所有者数字身份、渠道、管理方式、程序集/模块名和依赖 ID。
-
-本批策略是 **manual-only**。后续 A3 需要另行审核普通更新范围和追踪器；现在保存身份不等于启用自动更新。禁止重新运行旧准入以避免审核者变化，重试需启动新运行。已发布版本写入不可变 `publication-locks`，绑定版本、候选与资产哈希，不允许删除记录或改变内容；撤回版本需要后续明确策略。历史 Issue 修改不会使已锁定版本失效，但新版本发布前必须保持申请正文不变。
-
-## 发布与故障恢复
-
-两条工作流共用 `index-metadata` 串行队列，不取消正在运行的任务。发布器取当前可信 main 提交作为输入/快照，生成并校验完整 v3 目录，创建固定草稿 Release，无覆盖上传，下载核验字节/大小/哈希及 Tag/源码身份，再公开 Release。最后用一个 Git 提交加入不可变 published、版本锁及 stable。新鲜主分支检查与禁止强制的快进更新避免竞争覆盖。人工并发提交会阻止旧输入发布，需要在新 main 上启动新运行。[Git 引用 API](https://docs.github.com/en/rest/git/refs)。
-
-重试复用已上传且完全匹配的资产，绝不覆盖。若 stable 已提交而成功响应丢失，重新运行会核验准确的直接子提交与已下载目录，输出 `publication.already_complete` 而不写入。指针提交失败留下的 Release 是未引用的固定快照，玩家入口仍有效。不能删除或重定向已发布 Release/Tag/资产。受控发布显式调用，不依赖 token 推送触发另一条工作流。[GITHUB_TOKEN 触发规则](https://docs.github.com/en/actions/concepts/security/github_token)。
-
-初始限制：八个批准的版本记录、总 ZIP 下载 512 MiB、512 次 API 调用、25 分钟操作期限，加上已有每包和 JSON 限制。超限关闭发布，大目录需要专门扩容。闭包检查包版本范围、存在时的可选依赖、包/模块环以及程序集/模块冲突。本批尚无宿主模块白名单，因此拒绝依赖未出现在包闭包中的宿主模块 ID。客户端仍核验宿主/游戏版本、本地安装状态和实际 CLR 引用可用性。
-
-## 开发验证
-
-在 Phinix 工作区运行：
+## 验证
 
 ```sh
-dotnet build Extensions/PluginStore/RepositoryAutomation/Validator/Validator.csproj --configuration Release --no-restore -p:BuildInParallel=false -m:1
+dotnet build Extensions/PluginStore/RepositoryAutomation/Validator/Validator.csproj --configuration Release --no-restore
 python3 -m unittest discover -s Extensions/PluginStore/RepositoryAutomation/tests -v
 ```
 
-索引仓库对应路径是 `Validator/Validator.csproj`、`tests`。测试覆盖批准证据和准确合入的 PR、指纹/权限/分支/申请变动、策略/报告篡改、版本连续性、部分上传重试/资产替换、发布失败/并发修改保持指针、原子 stable 最后提交和真实校验器的依赖/模块闭包。真实公开回源与完整 Actions 流程仍需要远端验收；控制台测试不代表游戏内验证。
+索引仓库对应路径为 `Validator/Validator.csproj` 和 `tests`。47 项回归覆盖准确人工/标签批准、操作者/事件身份、正文变化/撤标/重新加标、自动合入范围/head、成功运行与机器人证明、不可变版本/凭据锁、workflow_run 来源、上传后复核、回报和原子发布恢复。远端真人加标签是独立验收步骤；控制台/Actions 检查不代表游戏验证。

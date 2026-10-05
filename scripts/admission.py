@@ -103,8 +103,14 @@ def read_bundle(root):
             'policySha256', 'static', 'staticSha256', 'issueNumber', 'issueBodySha256', 'issueUpdatedAt',
             'approvedAt', 'approval'} and type(review['schemaVersion']) is int and review['schemaVersion'] == 1 and
             type(review['issueNumber']) is int and review['issueNumber'] > 0 and
-            set(review['approval']) == {'actor', 'actorId', 'runId', 'trustedCommit', 'workflow', 'attempt'}, 'ApprovalRecordMismatch')
+            set(review['approval']) in (
+                {'actor', 'actorId', 'runId', 'trustedCommit', 'workflow', 'attempt'},
+                {'actor', 'actorId', 'runId', 'trustedCommit', 'workflow', 'attempt',
+                 'method', 'label', 'labelEventId', 'labelCreatedAt', 'reuseExisting'}), 'ApprovalRecordMismatch')
     fingerprint = digest(encode(candidate))
+    require((review['approval']['workflow'] == WORKFLOW and len(review['approval']) == 6) or
+            (review['approval']['workflow'] == '.github/workflows/plugin-label-admission.yml' and
+             len(review['approval']) == 11), 'ApprovalRecordMismatch')
     require(review['candidateSha256'] == fingerprint and review['sourceId'] == SOURCE and
             review['policySha256'] == digest(encode(scope)) and scope == policy(package) and
             review['staticSha256'] == digest(encode(review['static'])) and
