@@ -189,7 +189,7 @@ namespace Utils.Framework.ManagedExtensions
         }
     }
 
-    public sealed class ExtensionLocalizationCatalog
+    public sealed partial class ExtensionLocalizationCatalog
     {
         private readonly ReadOnlyDictionary<string,ExtensionLanguageFile> languages;
         private ExtensionLocalizationCatalog(Dictionary<string,ExtensionLanguageFile> languages,string locale)
@@ -207,7 +207,7 @@ namespace Utils.Framework.ManagedExtensions
                 {
                     token.ThrowIfCancellationRequested(); byte[] bytes=read(file);
                     if(bytes==null || bytes.Length!=file.Length) throw ManagedExtensionJson.Error("LocalizationLengthMismatch");
-                    if(ManagedExtensionPaths.Hash(bytes)!=file.Sha256) throw ManagedExtensionJson.Error("LocalizationDigestMismatch");
+                    if(ManagedExtensionDigest.Hash(bytes)!=file.Sha256) throw ManagedExtensionJson.Error("LocalizationDigestMismatch");
                     var language=ExtensionLanguageFile.Read(bytes);
                     if(language.Locale!=Path.GetFileNameWithoutExtension(file.Path)) throw ManagedExtensionJson.Error("LocalizationLocaleMismatch");
                     if(languages.ContainsKey(language.Locale)) throw ManagedExtensionJson.Error("DuplicateLocale");
@@ -233,27 +233,6 @@ namespace Utils.Framework.ManagedExtensions
             foreach(string locale in ExtensionLocale.Preference(languages.Keys,requested,DefaultLocale))
             { string value; if((display?languages[locale].Display:languages[locale].Strings).TryGetValue(key,out value)) return value; }
             return null;
-        }
-        public static ExtensionLocalizationCatalog LoadDirectory(string root,ExtensionLocalizationDeclaration declaration,CancellationToken token)
-        {
-            return Load(declaration,file=>
-            {
-                string path=Path.Combine(root,file.Path); ManagedExtensionInventoryReader.NoLinks(path);
-                return ManagedExtensionInventoryReader.Bytes(path,ExtensionLocalizationDeclaration.MaxFileBytes,token);
-            },token);
-        }
-        /// <summary>Explicit companion for normally discovered bundled DLLs, not native Mod languages.</summary>
-        public static ExtensionLocalizationCatalog LoadCompanion(string assemblyPath,string assemblyName,CancellationToken token)
-        {
-            string path=assemblyPath+".localization.json"; ManagedExtensionInventoryReader.NoLinks(path);
-            if(!File.Exists(path)) return Empty;
-            var fields=ManagedExtensionJson.Object(ManagedExtensionJson.Read(ManagedExtensionInventoryReader.Bytes(path,128*1024,token),128*1024),"schemaVersion","assemblyName","resources","localization");
-            if(ManagedExtensionJson.Integer(ManagedExtensionJson.Required(fields,"schemaVersion"),1,int.MaxValue)!=1 || ManagedExtensionJson.Text(ManagedExtensionJson.Required(fields,"assemblyName"),128)!=assemblyName)
-                throw ManagedExtensionJson.Error("LocalizationOwnerMismatch");
-            var resources=ManagedExtensionJson.Array(ManagedExtensionJson.Required(fields,"resources"),16).Select(n=>ManagedExtensionManifestReader.File(ManagedExtensionJson.Object(n,"path","length","sha256"))).ToList();
-            if(resources.Select(f=>f.Path).Distinct(StringComparer.OrdinalIgnoreCase).Count()!=resources.Count || resources.Any(f=>!f.Path.StartsWith("Resources/",StringComparison.Ordinal))) throw ManagedExtensionJson.Error("InvalidLocalizationResource");
-            ManagedExtensionManifestReader.ValidatePathTree(resources.Select(f=>f.Path));
-            return LoadDirectory(Path.GetDirectoryName(assemblyPath),ExtensionLocalizationDeclaration.Read(ManagedExtensionJson.Required(fields,"localization"),resources),token);
         }
     }
 }

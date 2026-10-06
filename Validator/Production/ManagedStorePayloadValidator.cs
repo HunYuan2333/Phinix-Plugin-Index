@@ -10,7 +10,7 @@ using Utils.Framework.ManagedExtensions;
 namespace Phinix.PluginStore
 {
     // Static validation evidence only. Installation must recheck the frozen input and host facts.
-    internal sealed class ManagedStorePayloadReport
+    internal sealed partial class ManagedStorePayloadReport
     {
         private readonly byte[] manifestBytes;
         private readonly Dictionary<string,byte[]> content;
@@ -22,11 +22,6 @@ namespace Phinix.PluginStore
         public ManagedExtensionInspectedPayload Inspected { get; }
         public ReadOnlyCollection<ValidatedPayloadFile> Files { get; }
         internal byte[] CopyManifestBytes() { return (byte[])manifestBytes.Clone(); }
-        internal ManagedExtensionInstallPackage InstallationInput(RepositoryEndpoint endpoint,ManagedStoreCatalogSnapshot catalog)
-        {
-            endpoint.Package(catalog,Package);
-            return new ManagedExtensionInstallPackage(catalog.SourceId,endpoint.IdentityKey,catalog.SnapshotId,catalog.Sha256,Sha256,manifestBytes,content);
-        }
     }
 
     internal static class ManagedStorePayloadValidator

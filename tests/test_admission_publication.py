@@ -286,7 +286,7 @@ class PublicationTests(unittest.TestCase):
 
     def test_configured_host_module_profiles_with_actual_validator(self):
         self.assertTrue(VALIDATOR.exists())
-        for kind in ('valid', 'absent', 'outside-range', 'partial-range', 'unknown-module', 'host-cycle', 'module-shadow', 'assembly-shadow', 'ambiguous', 'unknown-field', 'duplicate-field'):
+        for kind in ('valid', 'absent', 'outside-range', 'partial-range', 'unknown-module', 'host-cycle', 'module-shadow', 'assembly-shadow', 'assembly-alias-shadow', 'ambiguous', 'unknown-field', 'duplicate-field'):
             package = copy.deepcopy(EXAMPLE['package'])
             package['manifest']['modules'][0]['dependsOn'] = ['sample.host.feature']
             profile = dict(schemaVersion=1, profiles=[dict(phinixRange='>=0.9.7 <1.0.0',
@@ -300,6 +300,7 @@ class PublicationTests(unittest.TestCase):
                 profile['profiles'][0]['modules'].append(dict(id='sample.host.other', dependsOn=['sample.host.feature']))
             if kind == 'module-shadow': profile['profiles'][0]['modules'].append(dict(id=package['manifest']['modules'][0]['id'], dependsOn=[]))
             if kind == 'assembly-shadow': profile['profiles'][0]['assemblies'][0]['name'] = package['manifest']['assemblies'][0]['name']
+            if kind == 'assembly-alias-shadow': package['manifest']['assemblies'][0]['path'] = 'Assemblies/Sample.Host.Library.dll'
             if kind == 'ambiguous': profile['profiles'].append(copy.deepcopy(profile['profiles'][0]))
             if kind == 'unknown-field': profile['extra'] = True
             with tempfile.TemporaryDirectory() as temporary:

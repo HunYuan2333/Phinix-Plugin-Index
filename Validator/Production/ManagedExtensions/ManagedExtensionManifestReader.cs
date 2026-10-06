@@ -16,8 +16,7 @@ namespace Utils.Framework.ManagedExtensions
         {
             "Assembly-CSharp", "mscorlib", "netstandard", "System", "UnityEngine", "0Harmony", "LiteNetLib", "Google.Protobuf", "Protobuf",
             "Utils", "Connections", "Connections.Client", "Authentication", "Authentication.Client", "UserManagement", "UserManagement.Client",
-            "ClientExtensionAbstractions", "PhinixClient", "ChatExtension", "ChatExtension.Client", "TradeExtension", "TradeExtension.Client",
-            "InventoryExtension", "InventoryExtension.Client", "LegacyAdapter.Client"
+            "ClientExtensionAbstractions", "PhinixClient"
         };
 
         public static ManagedExtensionManifest Read(byte[] bytes)
@@ -54,6 +53,7 @@ namespace Utils.Framework.ManagedExtensions
 
             var assemblies = new List<ManagedExtensionAssembly>();
             var names = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+            var occupiedNames = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var paths = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             long expanded = 0;
             foreach (var item in ManagedExtensionJson.Array(Get(f, "assemblies"), 64))
@@ -78,7 +78,10 @@ namespace Utils.Framework.ManagedExtensions
                 if (IsProtectedAssembly(System.IO.Path.GetFileNameWithoutExtension(file.Path))) throw ManagedExtensionJson.Error("ProtectedAssembly");
                 if (!names.Add(asmName) || !paths.Add(file.Path)) throw ManagedExtensionJson.Error("DuplicateAssembly");
                 expanded = checked(expanded + file.Length);
-                assemblies.Add(new ManagedExtensionAssembly(asmName, asmVersion, culture, token, file));
+                var declaration = new ManagedExtensionAssembly(asmName, asmVersion, culture, token, file);
+                if (AssemblyNames(declaration).Any(occupiedNames.Contains)) throw ManagedExtensionJson.Error("DuplicateAssembly");
+                occupiedNames.UnionWith(AssemblyNames(declaration));
+                assemblies.Add(declaration);
             }
             if (assemblies.Count == 0) throw ManagedExtensionJson.Error("MissingAssembly");
 
@@ -170,6 +173,15 @@ namespace Utils.Framework.ManagedExtensions
                 }
                 if (all.Any(other => other.StartsWith(path + "/", StringComparison.OrdinalIgnoreCase))) throw ManagedExtensionJson.Error("PathConflict");
             }
+        }
+        // Actual identity and filename alias both participate in host/package occupancy.
+        // Business assemblies are discovered at the host boundary, not reserved by name here.
+        public static IEnumerable<string> AssemblyNames(ManagedExtensionAssembly assembly)
+        {
+            if (assembly == null) throw new ArgumentNullException(nameof(assembly));
+            yield return assembly.Name;
+            string alias = System.IO.Path.GetFileNameWithoutExtension(assembly.File.Path);
+            if (!string.Equals(alias, assembly.Name, StringComparison.OrdinalIgnoreCase)) yield return alias;
         }
         public static bool IsProtectedAssembly(string name)
         {
