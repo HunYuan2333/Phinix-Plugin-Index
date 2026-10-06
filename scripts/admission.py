@@ -106,11 +106,19 @@ def read_bundle(root):
             set(review['approval']) in (
                 {'actor', 'actorId', 'runId', 'trustedCommit', 'workflow', 'attempt'},
                 {'actor', 'actorId', 'runId', 'trustedCommit', 'workflow', 'attempt',
-                 'method', 'label', 'labelEventId', 'labelCreatedAt', 'reuseExisting'}), 'ApprovalRecordMismatch')
+                 'method', 'label', 'labelEventId', 'labelCreatedAt', 'reuseExisting'},
+                {'actor', 'actorId', 'runId', 'trustedCommit', 'workflow', 'attempt',
+                 'method', 'label', 'labelEventId', 'labelCreatedAt', 'reuseExisting', 'includeUpdatePolicy'},
+                {'actor', 'actorId', 'runId', 'trustedCommit', 'workflow', 'attempt',
+                 'method', 'baseCandidateSha256', 'updatePolicySha256'}), 'ApprovalRecordMismatch')
     fingerprint = digest(encode(candidate))
     require((review['approval']['workflow'] == WORKFLOW and len(review['approval']) == 6) or
             (review['approval']['workflow'] == '.github/workflows/plugin-label-admission.yml' and
-             len(review['approval']) == 11), 'ApprovalRecordMismatch')
+             len(review['approval']) in (11, 12)) or
+            (review['approval']['workflow'] == '.github/workflows/plugin-source-updates.yml' and
+             len(review['approval']) == 9 and review['approval']['method'] == 'approved-source' and
+             re.fullmatch(r'[0-9a-f]{64}', review['approval']['baseCandidateSha256']) and
+             re.fullmatch(r'[0-9a-f]{64}', review['approval']['updatePolicySha256'])), 'ApprovalRecordMismatch')
     require(review['candidateSha256'] == fingerprint and review['sourceId'] == SOURCE and
             review['policySha256'] == digest(encode(scope)) and scope == policy(package) and
             review['staticSha256'] == digest(encode(review['static'])) and

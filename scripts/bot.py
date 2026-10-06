@@ -297,6 +297,12 @@ def post(args):
         run = os.environ.get('GITHUB_RUN_ID', '')
         if re.fullmatch(r'[1-9][0-9]*', run):
             body += '\n\n[运行日志 / Run log](https://github.com/' + INDEX + '/actions/runs/' + run + ')'
+    else:
+        body += ('\n\n维护者批准后，标准版本资产名可启用同一作者/仓库、相同程序集/模块/依赖范围内的同主版本自动检查。'
+                 '身份、范围及主版本变化须重新审核；客户端不会自动更新。 / '
+                 'Approval may enroll standard versioned assets in same-major source monitoring within the fixed origin and assembly/module/dependency scope. '
+                 'Changed scope requires review; clients never update automatically.\n\n'
+                 '[自动版本规则 / Source update policy](https://github.com/' + INDEX + '/blob/main/SourceUpdates.md)')
     api.json(prefix + '/comments', method='POST', data={'body': body})
     if report['status'] == 'rejected':
         api.json(prefix + '/labels', method='POST', data={'labels': [ERROR_LABEL]})

@@ -11,8 +11,9 @@ import tempfile
 from bot import SOURCE, INDEX, GitHub, Rejected, require, strict_json, encode, digest, inspect, validator
 from admission import PREFIX, REPOSITORY_ID, OWNER_ID, WORKFLOW, event, maintainer, index, paths, read_bundle, commit
 import label_admission
+import source_updates
 
-MAX_RECORDS = 8
+MAX_RECORDS = 256
 
 
 def files(root, directory):
@@ -40,8 +41,22 @@ def record_bundle(candidate_raw, review_raw, policy_raw):
         return read_bundle(root)
 
 
-def approval_proof(api, package, review, scope, candidate, snapshot):
+def approval_proof(api, package, review, scope, candidate, snapshot, accepted=False):
+    # Accepted decisions have permanent content-bound evidence. Actions run/PR
+    # retention and a former maintainer leaving must not invalidate those versions.
+    if accepted:
+        try:
+            saved = strict_json(label_admission.read_at(api, proof_path(review), snapshot))
+        except Rejected as error:
+            if str(error) != 'OriginHttp404':
+                raise
+        else:
+            require(saved == proof_record(candidate, review, scope), 'ApprovalProofLockChanged')
+            return True
     approval = review['approval']
+    if approval.get('workflow') == source_updates.WORKFLOW:
+        source_updates.proof(api, candidate, review, scope, snapshot, accepted)
+        return
     if approval.get('workflow') == label_admission.WORKFLOW:
         label_admission.proof(api, candidate, review, scope, snapshot)
         return
@@ -75,6 +90,14 @@ def approval_proof(api, package, review, scope, candidate, snapshot):
         info = api.json(PREFIX + '/contents/' + name + '?ref=' + pull['head']['sha'])
         require(info.get('type') == 'file' and info.get('encoding') == 'base64' and
                 base64.b64decode(info['content'], validate=False) == encode(value), 'AdmissionPrContentChanged')
+
+
+def proof_path(review):
+    return 'approval-proof-locks/' + review['candidateSha256'] + '.json'
+
+
+def proof_record(candidate, review, scope):
+    return dict(schemaVersion=1, candidateSha256=digest(encode(candidate)), reviewSha256=digest(encode(review)), scopeSha256=digest(encode(scope)))
 
 
 def locks_for(records):
@@ -129,11 +152,15 @@ def collect(args, api, snapshot):
         records.append((candidate, review, scope)); expected_reviews.add(review_path); expected_scopes.add(scope_path)
     require(set(reviews) == expected_reviews and set(scopes) == expected_scopes, 'OrphanApprovalRecord')
     locks = locks_for(records); old_locks = files(args.root, 'publication-locks'); continuity(old_locks, locks)
-    require(sum(c['package']['artifact']['sizeBytes'] for c, _, _ in records) <= 512 * 1024 * 1024, 'PublicationPayloadLimit')
+    published = {strict_json(v)['candidateSha256'] for v in old_locks.values()}
+    require(sum(c['package']['artifact']['sizeBytes'] for c, r, _ in records if r['candidateSha256'] not in published) <= 512 * 1024 * 1024, 'PublicationPayloadLimit')
     for candidate, review, scope in records:
         package = candidate['package']
         event('publication.approval_started', packageId=package['id'], candidateSha256=review['candidateSha256'])
-        approval_proof(api, package, review, scope, candidate, snapshot)
+        permanent = approval_proof(api, package, review, scope, candidate, snapshot, review['candidateSha256'] in published)
+        if permanent:
+            event('publication.accepted_evidence_verified', packageId=package['id'], candidateSha256=review['candidateSha256'])
+            continue
         if review['candidateSha256'] not in {strict_json(v)['candidateSha256'] for v in old_locks.values()}:
             current = api.json(PREFIX + '/issues/' + str(review['issueNumber']))
             require('pull_request' not in current and
@@ -252,11 +279,15 @@ def completed_retry(api, snapshot, current):
 def publish(args, api):
     require(os.environ.get('GITHUB_REPOSITORY') == INDEX and os.environ.get('GITHUB_REF') == 'refs/heads/main' and
             os.environ.get('GITHUB_EVENT_NAME') in ('workflow_dispatch', 'workflow_run'), 'PublicationContextRejected')
-    trigger = label_admission.upstream(api) if os.environ.get('GITHUB_EVENT_NAME') == 'workflow_run' else None
+    source_event = os.environ.get('GITHUB_EVENT_NAME') == 'workflow_run' and label_admission.payload().get('workflow_run', {}).get('display_title') == source_updates.TITLE
+    source_trigger = source_updates.upstream(api) if source_event else None
+    if source_event and source_trigger is None:
+        event('publication.no_source_updates'); return
+    trigger = label_admission.upstream(api) if os.environ.get('GITHUB_EVENT_NAME') == 'workflow_run' and not source_event else None
     snapshot = os.environ.get('GITHUB_SHA', '')
     require(re.fullmatch(r'[0-9a-f]{40}', snapshot), 'TrustedHeadChanged')
     event('publication.started', snapshotId=snapshot, checkOnly=args.check_only)
-    if trigger is None:
+    if trigger is None and not source_event:
         maintainer(api, os.environ.get('GITHUB_TRIGGERING_ACTOR'), None)
     current = index(api)
     if current != snapshot:
@@ -264,7 +295,18 @@ def publish(args, api):
     source = strict_json((args.root / 'source.json').read_bytes())
     require(source == dict(schemaVersion=1, sourceId=SOURCE, repository=INDEX), 'IndexIdentityMismatch')
     records, locks, old_locks = collect(args, api, snapshot)
+    proof_locks = {proof_path(r): encode(proof_record(c, r, s)) for c, r, s in records}
+    old_proof_locks = files(args.root, 'approval-proof-locks'); continuity(old_proof_locks, proof_locks)
     approval_locks, old_approval_locks, pending = label_receipts(args, api, snapshot, records, old_locks, trigger)
+    receipts = files(args.root, 'source-update-approvals'); old_update_locks = files(args.root, 'source-update-locks'); update_locks = {}
+    for name, raw in receipts.items():
+        review = strict_json(raw); run = review['approval']['runId']
+        require(review['approval']['workflow'] == source_updates.WORKFLOW and name == source_updates.receipt_path(review) and
+                any(review == r for _, r, _ in records), 'ApprovalRecordMismatch')
+        update_locks['source-update-locks/' + run + '.json'] = encode(dict(schemaVersion=1, runId=run, candidateSha256=review['candidateSha256'], reviewSha256=digest(raw)))
+    require(all(source_updates.receipt_path(r) in receipts for _, r, _ in records if r['approval']['workflow'] == source_updates.WORKFLOW), 'ApprovalRecordMissing')
+    require(source_trigger is None or 'source-update-approvals/' + source_trigger + '.json' in receipts, 'PublicationTriggerRejected')
+    continuity(old_update_locks, update_locks)
     visible = player_records(args.root, records, old_locks)
     raw = encode(dict(schemaVersion=3, sourceId=SOURCE, snapshotId=snapshot,
                       packages=[c['package'] for c, _, _ in sorted(visible, key=lambda r: (r[0]['package']['id'], r[0]['package']['manifest']['version']))]))
@@ -283,9 +325,11 @@ def publish(args, api):
     changes = {published_path: published, 'stable.json': stable}
     changes.update({path: data for path, data in locks.items() if path not in old_locks})
     changes.update({path: data for path, data in approval_locks.items() if path not in old_approval_locks})
+    changes.update({path: data for path, data in update_locks.items() if path not in old_update_locks})
+    changes.update({path: data for path, data in proof_locks.items() if path not in old_proof_locks})
     for candidate, review, scope in records:
-        api.verify_origin(candidate['package']['artifact'])
         if review['candidateSha256'] not in {strict_json(v)['candidateSha256'] for v in old_locks.values()}:
+            api.verify_origin(candidate['package']['artifact'])
             current = api.json(PREFIX + '/issues/' + str(review['issueNumber']))
             require('pull_request' not in current and
                     digest((current.get('body') or '').encode()) == review['issueBodySha256'], 'SubmissionChanged')
