@@ -11,12 +11,12 @@ internal static class Program
 {
     private static int Main(string[] args)
     {
-        if (args.Length != 3 && args.Length != 7) return 2;
+        if (args.Length != 3 && args.Length != 4 && args.Length != 7) return 2;
         try
         {
             var catalog = ManagedStoreCatalogReader.Read(File.ReadAllBytes(args[2]), args[1]);
-            if (args.Length == 3 && args[0] == "publication")
-            { PublicationClosure.Validate(catalog); Console.WriteLine("Publication dependency closure verified."); return 0; }
+            if ((args.Length == 3 || args.Length == 4) && args[0] == "publication")
+            { PublicationClosure.Validate(catalog,args.Length==4?PublicationHostProfile.Read(args[3]):null); Console.WriteLine("Publication dependency closure verified."); return 0; }
             if (args.Length == 3 && args[0] == "catalog")
             { Console.WriteLine("Catalog structure verified."); return 0; }
             if (args.Length != 7 || args[0] != "payload") return 2;

@@ -7,18 +7,23 @@ using Utils.Framework.ManagedExtensions;
 // Repository closure only. Runtime host/game/installed-state checks still run in the client.
 internal static class PublicationClosure
 {
-    internal static void Validate(ManagedStoreCatalogSnapshot catalog)
+    internal static bool ValidModuleGraph(Dictionary<string,string[]> modules)
+    {
+        return !modules.Values.Any(deps=>deps.Any(d=>!modules.ContainsKey(d))) &&
+            modules.Keys.All(id=>Visit(id,new HashSet<string>(),new HashSet<string>(),key=>modules[key]));
+    }
+    internal static void Validate(ManagedStoreCatalogSnapshot catalog, IEnumerable<PublicationHostProfile> hostProfiles = null)
     {
         foreach (var root in catalog.Packages.Where(p => !p.IsWorkshop && p.State == "active"))
         {
             int steps = 0;
-            if (!Search(catalog, root, new Dictionary<string, ManagedStoreRecord>(), ref steps))
+            if (!Search(catalog, root, new Dictionary<string, ManagedStoreRecord>(), (hostProfiles ?? new PublicationHostProfile[0]).ToList(), ref steps))
                 throw new InvalidOperationException("PublicationDependencyClosure");
         }
     }
 
     private static bool Search(ManagedStoreCatalogSnapshot catalog, ManagedStoreRecord root,
-        Dictionary<string, ManagedStoreRecord> selected, ref int steps)
+        Dictionary<string, ManagedStoreRecord> selected, List<PublicationHostProfile> hostProfiles, ref int steps)
     {
         if (++steps > 4096 || selected.Count > 32) throw new InvalidOperationException("PublicationResolutionLimit");
         var required = new Dictionary<string, List<ManagedExtensionVersionRange>>();
@@ -29,12 +34,12 @@ internal static class PublicationClosure
                     Add(required, dependency.PackageId, dependency.VersionRange);
         if (selected.Any(p => required.ContainsKey(p.Key) && required[p.Key].Any(r => !r.Contains(p.Value.Manifest.Version)))) return false;
         string next = required.Keys.Where(k => !selected.ContainsKey(k)).OrderBy(k => k, StringComparer.Ordinal).FirstOrDefault();
-        if (next == null) return IdentitiesAndCycles(selected);
+        if (next == null) return IdentitiesAndCycles(selected,hostProfiles);
         foreach (var candidate in catalog.Packages.Where(p => !p.IsWorkshop && p.State == "active" && p.Id == next &&
             required[next].All(r => r.Contains(p.Manifest.Version))).OrderByDescending(p => p.Manifest.Version))
         {
             selected.Add(next, candidate);
-            if (Search(catalog, root, selected, ref steps)) return true;
+            if (Search(catalog, root, selected, hostProfiles, ref steps)) return true;
             selected.Remove(next);
         }
         return false;
@@ -47,10 +52,13 @@ internal static class PublicationClosure
         values.Add(range);
     }
 
-    private static bool IdentitiesAndCycles(Dictionary<string, ManagedStoreRecord> selected)
+    private static bool IdentitiesAndCycles(Dictionary<string, ManagedStoreRecord> selected, List<PublicationHostProfile> hostProfiles)
     {
-        var assemblies = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
-        var modules = new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase);
+        var matches=hostProfiles.Where(p=>selected.Values.All(package=>p.Covers(package.Manifest.Compatibility.PhinixRange))).ToList();
+        if(matches.Count>1) throw new InvalidOperationException("HostProfileAmbiguous");
+        var host=matches.SingleOrDefault();
+        var assemblies = host==null?new HashSet<string>(StringComparer.OrdinalIgnoreCase):new HashSet<string>(host.Assemblies,StringComparer.OrdinalIgnoreCase);
+        var modules = host==null?new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase):new Dictionary<string,string[]>(host.Modules,StringComparer.OrdinalIgnoreCase);
         foreach (var package in selected.Values)
         {
             foreach (var assembly in package.Manifest.Assemblies) if (!assemblies.Add(assembly.Name)) return false;
@@ -60,13 +68,12 @@ internal static class PublicationClosure
                 modules.Add(module.Id, module.DependsOn.ToArray());
             }
         }
-        // Host-provided module dependencies need an explicitly reviewed allowlist in a later batch.
-        if (modules.Values.Any(deps => deps.Any(d => !modules.ContainsKey(d)))) return false;
+        // Only discovered modules from a version-scoped, maintainer-owned profile
+        // supplement repository providers. Missing/unknown modules still refuse publication.
+        if (!ValidModuleGraph(modules)) return false;
         foreach (string id in selected.Keys)
             if (!Visit(id, new HashSet<string>(), new HashSet<string>(), key => selected[key].Manifest.Dependencies
                 .Where(d => selected.ContainsKey(d.PackageId)).Select(d => d.PackageId))) return false;
-        foreach (string id in modules.Keys)
-            if (!Visit(id, new HashSet<string>(), new HashSet<string>(), key => modules[key])) return false;
         return true;
     }
 
