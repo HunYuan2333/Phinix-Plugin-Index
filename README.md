@@ -4,6 +4,8 @@
 
 Submit through the Plugin submission Issue form. Maintainers approve the exact candidate by adding `plugin-approved`; trusted checks create/merge an audit PR and publish automatically. Publication closes the Issue; failures keep it open with `plugin-error` and author guidance. Close an unapproved Issue to reject it. [Author and bot guide](GitHubBotGuide.md) · [Maintainer publication guide](ControlledPublication.md).
 
+The CF gateway origin is `https://plugins.hunyuan2333.com`; [current official metadata](https://plugins.hunyuan2333.com/v1/sources/phinix.official/stable).
+
 The official source is `phinix.official`. Player clients default to GitHub direct and can switch to CF acceleration for the same catalog. `stable.json` points to the current immutable schema-v3 catalog Release; files on a development branch and test fixtures are not player publication.
 
 The Playtest developer fixture is excluded from the player catalog. It remains independently available in [Phinix-PluginStore-PoC](https://github.com/HunYuan2333/Phinix-PluginStore-PoC). The official catalog now includes the harmless [Example Plugin](https://github.com/HunYuan2333/Phinix-Example-Plugin), demonstrating normal submission, localization, tabs and settings. Approved fixture records and historical snapshots remain for audit, not as store listings. Maintainers own `catalog-exclusions.json`; exclusions never rewrite approved artifacts/locks and publication validates the visible dependency closure.

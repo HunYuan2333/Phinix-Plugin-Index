@@ -17,7 +17,7 @@ New, edited or reopened applications receive a static report. Checks cover stric
 3. Trusted automation rechecks the candidate, merges a metadata-only evidence PR and publishes the catalog. No second human approval is required.
 4. Successful publication removes `plugin-error` and closes the Issue. Failures leave it open with `plugin-error` and diagnostic guidance. See [publication operations and recovery](ControlledPublication.md).
 
-The official player source is `phinix.official`, using GitHub direct or CF acceleration for the same protocol, identity and immutable bytes. Playtest stays outside the player catalog; its historical approved records and regression fixture remain for audit. Automatic monitoring of later author releases (A3) is not enabled yet; submit a new fixed candidate for each new version currently.
+The official player source is `phinix.official`, using GitHub direct or CF acceleration for the same protocol, identity and immutable bytes. Playtest stays outside the player catalog; its historical approved records and regression fixture remain for audit. Later stable releases are automatically monitored inside an explicit approved-source policy. Changes outside that policy need a new fixed candidate and maintainer review; see [approved source updates](SourceUpdates.md).
 
 ## Retry and local validation
 
