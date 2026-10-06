@@ -1,7 +1,7 @@
 name: Plugin controlled publication
 on:
   workflow_run:
-    workflows: [Plugin label admission]
+    workflows: [Plugin label admission, Plugin source updates]
     types: [completed]
     branches: [main]
   workflow_dispatch:
@@ -19,7 +19,7 @@ concurrency:
 jobs:
   verify:
     if: >-
-      github.repository == 'HunYuan2333/Phinix-Plugin-Index' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && startsWith(github.event.workflow_run.display_title, 'Label admission #')))
+      github.repository == 'HunYuan2333/Phinix-Plugin-Index' && github.ref == 'refs/heads/main' && (github.event_name == 'workflow_dispatch' || (github.event.workflow_run.conclusion == 'success' && (startsWith(github.event.workflow_run.display_title, 'Label admission #') || github.event.workflow_run.display_title == 'Source update admission')))
     runs-on: ubuntu-latest
     timeout-minutes: 30
     permissions:
@@ -80,3 +80,24 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PUBLISHED: ${{ needs.publish.result == 'success' }}
         run: python3 scripts/label_admission.py feedback --stage publication --success "$PUBLISHED"
+
+  notify_updates:
+    if: >-
+      always() && github.event_name == 'workflow_run' && github.event.workflow_run.conclusion == 'success' && github.event.workflow_run.display_title == 'Source update admission' && github.repository == 'HunYuan2333/Phinix-Plugin-Index'
+    needs: [verify, publish]
+    runs-on: ubuntu-latest
+    timeout-minutes: 3
+    permissions:
+      contents: read
+      issues: write
+      actions: read
+      pull-requests: read
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          ref: ${{ github.sha }}
+          persist-credentials: false
+      - env:
+          GH_TOKEN: ${{ github.token }}
+          PUBLISHED: ${{ needs.publish.result == 'success' }}
+        run: python3 scripts/source_updates.py feedback --success "$PUBLISHED"

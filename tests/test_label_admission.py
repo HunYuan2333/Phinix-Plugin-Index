@@ -125,6 +125,8 @@ class LabelAdmissionTests(unittest.TestCase):
             self.assertEqual(candidate, EXAMPLE)
             self.assertEqual(review['candidateSha256'], FINGERPRINT)
             self.assertFalse(review['approval']['reuseExisting'])
+            self.assertTrue(review['approval']['includeUpdatePolicy'])
+            self.assertTrue(any(p.startswith('update-policies/') for p in labels.expected_files(candidate, review, scope)))
         api = LabelApi(); api.issues[0]['body'] += ' edited'
         with tempfile.TemporaryDirectory() as temporary, patch.dict(os.environ, dict(CONTEXT, GITHUB_EVENT_NAME='issues'), clear=True), \
              patch.object(labels, 'payload', return_value=webhook()), patch.object(labels, 'inspect') as inspect:

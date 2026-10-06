@@ -143,6 +143,13 @@ def prepare(args, api):
         static = inspect(args, package, Path(temporary), api)
     review.update(static=static, staticSha256=digest(encode(static)))
     approval['reuseExisting'] = reuse(api, parent, package, fingerprint, candidate, scope)
+    import source_updates
+    update_policy = source_updates.default_policy(candidate, review)
+    if update_policy is not None:
+        tree = api.json(PREFIX + '/git/trees/' + parent + '?recursive=1')
+        require(tree.get('truncated') is False, 'IndexTreeLimit')
+        if not any(p.get('path') == source_updates.policy_path(package['id']) for p in tree['tree']):
+            approval['includeUpdatePolicy'] = True
     current_approval(api, review)
     args.output.mkdir(parents=True, exist_ok=False)
     for name, value in (('candidate.json', candidate), ('review.json', review), ('policy.json', scope)):
@@ -155,6 +162,11 @@ def expected_files(candidate, review, scope):
     result = {receipt_path(review): encode(review)}
     if not review['approval']['reuseExisting']:
         result.update(dict(zip(paths(candidate['package'], review['candidateSha256']), map(encode, (candidate, review, scope)))))
+    if review['approval'].get('includeUpdatePolicy'):
+        import source_updates
+        value = source_updates.default_policy(candidate, review)
+        require(value is not None, 'UpdatePolicyRejected')
+        result[source_updates.policy_path(candidate['package']['id'])] = encode(value)
     return result
 
 
@@ -167,6 +179,7 @@ def validate_record(review):
             re.fullmatch(r'[1-9][0-9]*', approval.get('runId', '')) and
             re.fullmatch(r'[0-9a-f]{40}', approval.get('trustedCommit', '')) and
             isinstance(approval.get('labelCreatedAt'), str), 'ApprovalProofRejected')
+    require('includeUpdatePolicy' not in approval or approval['includeUpdatePolicy'] is True, 'ApprovalProofRejected')
 
 
 def bot_identity(user):
@@ -199,6 +212,10 @@ def admit(args, api):
     require(reuse(api, parent, candidate['package'], review['candidateSha256'], candidate, scope) ==
             review['approval']['reuseExisting'], 'ApprovalRecordMismatch')
     expected = expected_files(candidate, review, scope)
+    if approval.get('includeUpdatePolicy'):
+        import source_updates
+        tree = api.json(PREFIX + '/git/trees/' + parent + '?recursive=1')
+        require(tree.get('truncated') is False and not any(p.get('path') == source_updates.policy_path(candidate['package']['id']) for p in tree['tree']), 'UpdatePolicyChanged')
     sha = commit(api, parent, expected, 'Approve labeled plugin candidate ' + review['candidateSha256'])
     branch = 'codex/admission-' + approval['runId']
     api.json(PREFIX + '/git/refs', 'POST', dict(ref='refs/heads/' + branch, sha=sha))
