@@ -47,7 +47,7 @@ namespace Utils.Framework.ManagedExtensions
                 if (input.LongLength > ManagedExtensionManifestReader.MaxFileBytes || total > ManagedExtensionManifestReader.MaxExpandedBytes)
                     throw ManagedExtensionJson.Error("AssemblySizeInvalid");
                 byte[] frozen = (byte[])input.Clone();
-                if (ManagedExtensionPaths.Hash(frozen) != declaration.File.Sha256) throw ManagedExtensionJson.Error("AssemblyDigestMismatch");
+                if (ManagedExtensionDigest.Hash(frozen) != declaration.File.Sha256) throw ManagedExtensionJson.Error("AssemblyDigestMismatch");
                 var metadata = ManagedExtensionMetadataReader.Read(frozen);
                 cancellationToken.ThrowIfCancellationRequested();
                 if (metadata.Identity.FullName != declaration.FullName) throw ManagedExtensionJson.Error("AssemblyIdentityMismatch");

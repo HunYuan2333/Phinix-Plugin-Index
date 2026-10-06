@@ -20,14 +20,6 @@ namespace Phinix.PluginStore
         private static readonly Regex IdPattern = new Regex("^[a-z0-9]+(?:[._-][a-z0-9]+)*$", RegexOptions.CultureInvariant);
         private static readonly Regex AssemblyPattern = new Regex("^[A-Za-z][A-Za-z0-9._-]*$", RegexOptions.CultureInvariant);
         private static readonly Regex RepositoryPattern = new Regex("^[A-Za-z0-9][A-Za-z0-9-]{0,38}/[A-Za-z0-9][A-Za-z0-9._-]{0,99}$", RegexOptions.CultureInvariant);
-        private static readonly HashSet<string> ProtectedAssemblies = new HashSet<string>(StringComparer.OrdinalIgnoreCase)
-        {
-            "Assembly-CSharp", "mscorlib", "netstandard", "System", "UnityEngine", "0Harmony", "LiteNetLib", "Google.Protobuf", "Protobuf",
-            "Utils", "Connections", "Connections.Client", "Authentication", "Authentication.Client",
-            "UserManagement", "UserManagement.Client", "ClientExtensionAbstractions", "PhinixClient",
-            "ChatExtension", "ChatExtension.Client", "TradeExtension", "TradeExtension.Client",
-            "InventoryExtension", "InventoryExtension.Client", "LegacyAdapter.Client"
-        };
 
         public static CatalogSnapshot Read(byte[] utf8, string expectedSourceId)
         {
@@ -477,9 +469,7 @@ namespace Phinix.PluginStore
 
         internal static bool IsProtectedAssembly(string name)
         {
-            return ProtectedAssemblies.Contains(name) || name.StartsWith("Unity.", StringComparison.OrdinalIgnoreCase) ||
-                name.StartsWith("UnityEngine.", StringComparison.OrdinalIgnoreCase) || name.StartsWith("System.", StringComparison.OrdinalIgnoreCase) ||
-                name.StartsWith("com.rlabrecque.steamworks", StringComparison.OrdinalIgnoreCase);
+            return Utils.Framework.ManagedExtensions.ManagedExtensionManifestReader.IsProtectedAssembly(name);
         }
 
         internal static string Hash(byte[] bytes)

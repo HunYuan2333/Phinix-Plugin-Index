@@ -61,7 +61,12 @@ internal static class PublicationClosure
         var modules = host==null?new Dictionary<string, string[]>(StringComparer.OrdinalIgnoreCase):new Dictionary<string,string[]>(host.Modules,StringComparer.OrdinalIgnoreCase);
         foreach (var package in selected.Values)
         {
-            foreach (var assembly in package.Manifest.Assemblies) if (!assemblies.Add(assembly.Name)) return false;
+            foreach (var assembly in package.Manifest.Assemblies)
+            {
+                var names=ManagedExtensionManifestReader.AssemblyNames(assembly).ToArray();
+                if(names.Any(assemblies.Contains)) return false;
+                assemblies.UnionWith(names);
+            }
             foreach (var module in package.Manifest.Modules)
             {
                 if (modules.ContainsKey(module.Id)) return false;

@@ -18,13 +18,35 @@ namespace Utils.Framework.ManagedExtensions
         public string Culture { get; }
         public string PublicKeyToken { get; }
         public string FullName => Name + ", Version=" + Version + ", Culture=" + Culture + ", PublicKeyToken=" + PublicKeyToken;
+        /// <summary>Host libraries may satisfy older references within the same major version.
+        /// This policy does not change payload identity or package dependency locks.</summary>
+        public bool CanProvideHostReference(ManagedAssemblyIdentity required)
+        {
+            if (required == null || !string.Equals(Name, required.Name, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(Culture, required.Culture, StringComparison.OrdinalIgnoreCase) ||
+                !string.Equals(PublicKeyToken, required.PublicKeyToken, StringComparison.OrdinalIgnoreCase)) return false;
+            System.Version availableVersion, requiredVersion;
+            return System.Version.TryParse(Version, out availableVersion) && System.Version.TryParse(required.Version, out requiredVersion) &&
+                availableVersion.Major == requiredVersion.Major && availableVersion.CompareTo(requiredVersion) >= 0;
+        }
+        public static ManagedAssemblyIdentity SelectHostReference(ManagedAssemblyIdentity required, IEnumerable<ManagedAssemblyIdentity> available)
+        {
+            if (required == null) throw new ArgumentNullException(nameof(required));
+            if (available == null) throw new ArgumentNullException(nameof(available));
+            var identities = available.ToList();
+            var exact = identities.Where(a => a.FullName == required.FullName).ToList();
+            if (exact.Count != 0) return exact.Count == 1 ? exact[0] : null;
+            var compatible = identities.Where(a => a.CanProvideHostReference(required)).ToList();
+            // Do not silently choose among multiple loaded host versions.
+            return compatible.Count == 1 ? compatible[0] : null;
+        }
         public static ManagedAssemblyIdentity FromAssemblyName(AssemblyName name)
         {
             if (name == null) throw new ArgumentNullException(nameof(name));
             if (string.IsNullOrEmpty(name.Name) || name.Version == null) throw new ArgumentException("A complete assembly identity is required.", nameof(name));
             byte[] token = name.GetPublicKeyToken();
             return new ManagedAssemblyIdentity(name.Name, name.Version.ToString(), string.IsNullOrEmpty(name.CultureName) ? "neutral" : name.CultureName,
-                token == null || token.Length == 0 ? "null" : ManagedExtensionPaths.Hex(token));
+                token == null || token.Length == 0 ? "null" : ManagedExtensionDigest.Hex(token));
         }
     }
 
@@ -239,7 +261,7 @@ namespace Utils.Framework.ManagedExtensions
                     if ((flags & 1) != 0)
                     { using (var sha = SHA1.Create()) key = sha.ComputeHash(key).Reverse().Take(8).ToArray(); }
                     else if (key.Length != 8) throw Bad();
-                    token = ManagedExtensionPaths.Hex(key);
+                    token = ManagedExtensionDigest.Hex(key);
                 }
                 var result = new ManagedAssemblyIdentity(name, version, culture.Length == 0 ? "neutral" : culture, token);
                 identityCache.Add(cacheKey, result); return result;
