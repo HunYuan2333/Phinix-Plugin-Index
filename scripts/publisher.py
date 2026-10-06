@@ -313,7 +313,13 @@ def publish(args, api):
     require(len(raw) <= 2 * 1024 * 1024, 'DocumentLimit')
     with tempfile.TemporaryDirectory() as temporary:
         path = Path(temporary) / 'catalog.json'; path.write_bytes(raw)
-        validator(args, ['publication', SOURCE, str(path)])
+        closure_args = ['publication', SOURCE, str(path)]
+        host_profile = args.root / 'host-module-profiles.json'
+        if host_profile.exists():
+            require(not host_profile.is_symlink() and host_profile.is_file(), 'HostProfilePathRejected')
+            require(host_profile.read_bytes() == label_admission.read_at(api, 'host-module-profiles.json', snapshot), 'HostProfileChanged')
+            closure_args.append(str(host_profile))
+        validator(args, closure_args)
     event('publication.catalog_verified', snapshotId=snapshot, sha256=digest(raw), packages=len(visible), bytes=len(raw))
     if args.check_only:
         event('publication.check_complete', snapshotId=snapshot); return

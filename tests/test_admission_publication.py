@@ -284,4 +284,35 @@ class PublicationTests(unittest.TestCase):
             self.assertEqual(result.returncode == 0, kind in ('valid', 'optional-missing'), (kind, result.stderr))
 
 
+    def test_configured_host_module_profiles_with_actual_validator(self):
+        self.assertTrue(VALIDATOR.exists())
+        for kind in ('valid', 'absent', 'outside-range', 'partial-range', 'unknown-module', 'host-cycle', 'module-shadow', 'assembly-shadow', 'ambiguous', 'unknown-field', 'duplicate-field'):
+            package = copy.deepcopy(EXAMPLE['package'])
+            package['manifest']['modules'][0]['dependsOn'] = ['sample.host.feature']
+            profile = dict(schemaVersion=1, profiles=[dict(phinixRange='>=0.9.7 <1.0.0',
+                assemblies=[dict(name='Sample.Host.Library', sha256='a' * 64)],
+                modules=[dict(id='sample.host.feature', dependsOn=[])])])
+            if kind == 'outside-range': profile['profiles'][0]['phinixRange'] = '>=1.0.0 <2.0.0'
+            if kind == 'partial-range': profile['profiles'][0]['phinixRange'] = '>=0.9.7 <0.9.8'
+            if kind == 'unknown-module': package['manifest']['modules'][0]['dependsOn'] = ['unknown.host.module']
+            if kind == 'host-cycle':
+                profile['profiles'][0]['modules'][0]['dependsOn'] = ['sample.host.other']
+                profile['profiles'][0]['modules'].append(dict(id='sample.host.other', dependsOn=['sample.host.feature']))
+            if kind == 'module-shadow': profile['profiles'][0]['modules'].append(dict(id=package['manifest']['modules'][0]['id'], dependsOn=[]))
+            if kind == 'assembly-shadow': profile['profiles'][0]['assemblies'][0]['name'] = package['manifest']['assemblies'][0]['name']
+            if kind == 'ambiguous': profile['profiles'].append(copy.deepcopy(profile['profiles'][0]))
+            if kind == 'unknown-field': profile['extra'] = True
+            with tempfile.TemporaryDirectory() as temporary:
+                path = Path(temporary) / 'catalog.json'
+                path.write_bytes(bot.encode(dict(schemaVersion=3, sourceId=bot.SOURCE, snapshotId=HEAD, packages=[package])))
+                config = Path(temporary) / 'host-module-profiles.json'
+                raw = bot.encode(profile)
+                if kind == 'duplicate-field': raw = raw.replace(b'"schemaVersion":1', b'"schemaVersion":1,"schemaVersion":1')
+                config.write_bytes(raw)
+                args = ['dotnet', str(VALIDATOR), 'publication', bot.SOURCE, str(path)]
+                if kind != 'absent': args.append(str(config))
+                result = subprocess.run(args, capture_output=True, timeout=30)
+            self.assertEqual(result.returncode == 0, kind == 'valid', (kind, result.stderr))
+
+
 if __name__ == '__main__': unittest.main()
