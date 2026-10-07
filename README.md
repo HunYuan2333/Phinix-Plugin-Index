@@ -1,5 +1,7 @@
 # Phinix Plugin Index
 
+The catalog supports both managed DLL packages and **metadata-only Steam Workshop listings**. Submit Workshop entries with the [Workshop form](.github/ISSUE_TEMPLATE/workshop-submit.yml) and [example](examples/workshop-submission.json); maintainers approve them with the same `plugin-approved` label. Steam manages the mod itself.
+
 [中文](README.zh-CN.md). The official Phinix managed-plugin catalog. Authors keep source and fixed DLL ZIP releases in their own public repositories; this repository stores reviewed metadata and immutable catalog snapshots.
 
 Submit through the Plugin submission Issue form. Maintainers approve the exact candidate by adding `plugin-approved`; trusted checks create/merge an audit PR and publish automatically. Publication closes the Issue; failures keep it open with `plugin-error` and author guidance. Close an unapproved Issue to reject it. [Author and bot guide](GitHubBotGuide.md) · [Maintainer publication guide](ControlledPublication.md).
