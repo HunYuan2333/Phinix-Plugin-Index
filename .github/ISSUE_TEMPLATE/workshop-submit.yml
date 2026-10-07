@@ -1,0 +1,29 @@
+name: Workshop listing / 工坊收录
+description: Submit only a RimWorld Workshop listing; Steam handles the mod files.
+title: "[Plugin] [Workshop] "
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Copy examples/workshop-submission.json and replace the metadata with your mod.
+        参考 examples/workshop-submission.json，替换成你的 Mod 信息。
+        Submit only a Workshop ID, Mod packageId and listing metadata. No ZIP, DLL, manifest or GitHub release is required.
+        仅提交工坊 ID、Mod packageId 和收录元数据，无需 ZIP、DLL、manifest 或 GitHub Release。
+        Maintainers approve the listing with plugin-approved; metadata checks do not review mod code or Steam updates.
+        维护者加 plugin-approved 批准收录；元数据检查不代表 Mod 代码或后续 Steam 更新经过审查。
+  - type: textarea
+    id: candidate
+    attributes:
+      label: Candidate JSON
+      description: schemaVersion=1 envelope; channel=steam-workshop and management=rimworld-mod.
+      render: json
+      placeholder: '{"schemaVersion":1,"package":{...}}'
+    validations:
+      required: true
+  - type: textarea
+    id: listing_notes
+    attributes:
+      label: Listing notes / 收录说明
+      description: Explain the mod, your relationship to it, the Workshop link and any testing-only status.
+    validations:
+      required: true

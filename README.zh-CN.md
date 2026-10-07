@@ -1,5 +1,7 @@
 # Phinix 插件索引
 
+目录同时支持托管 DLL 包和**仅提供元数据、链接的 Steam 工坊条目**。工坊条目使用[独立申请表单](.github/ISSUE_TEMPLATE/workshop-submit.yml)和[示例](examples/workshop-submission.json)，维护者仍加 `plugin-approved` 批准；Mod 本身由 Steam 管理。
+
 [English](README.md)。这里是正式托管插件目录；作者在自己的公开仓库发布源码和固定 DLL ZIP，这里保存审核元数据及不可变目录快照。
 
 作者通过 Plugin submission Issue 表单申请。维护者给准确候选添加 `plugin-approved`，机器人复核、创建并合入审计 PR、发布目录；成功自动关闭 Issue，失败保留打开状态并添加 `plugin-error` 和纠错提示。未批准时直接关闭 Issue 即为拒绝。[发布者指南](GitHubBotGuide.zh-CN.md) · [维护者发布操作](ControlledPublication.zh-CN.md)。
