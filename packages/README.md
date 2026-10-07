@@ -1,20 +1,40 @@
-# Package inputs / 包输入
+# Package Catalog Data / 包元数据目录
 
-No package has been approved. This directory intentionally contains no package JSON.
-目前没有批准任何包，本目录故意不放示例或伪造的发行记录。
+This directory stores approved package candidate records for the Phinix Plugin Index.
 
-The schema-v1 client requires explicit IDs, channel, integration kind, compatibility,
-dependencies, modules, assemblies and external mod requirements. GitHub records also
-bind source commit, repository/owner/release/asset numeric identities, exact sizes,
-raw package SHA-256 and manifest SHA-256. Numeric GitHub IDs are decimal strings.
-Workshop records contain metadata and a Workshop ID; the store does not download
-Workshop content or invent its package version/hash.
+本目录存储经审核准入的 Phinix 插件候选元数据记录。
 
-schema v1 需要显式包身份、渠道、集成类型、兼容范围、依赖、模块、程序集和外部模组要求。GitHub 条目还绑定源码提交、仓库/作者/Release/资产数字身份、精确大小及包/清单的原始 SHA-256；GitHub 数字 ID 使用十进制字符串。工坊只保存元信息和工坊 ID，不由商店下载，也不虚构版本或摘要。
+---
 
-Package manifests exclude catalog state and artifact metadata to avoid circular
-self-hashing. Source and actual release assets must exist before an entry is accepted.
-The final input layout, JSON Schema, reviewer tools and submission workflow are not
-implemented in this bootstrap.
+## Directory Layout / 目录结构
 
-包清单不包含索引状态及 artifact 字段，避免自哈希循环。入库前必须有真实源码和发行资产。最终输入布局、JSON Schema、审核工具及申请工作流尚未在初始化仓库实现。
+Packages are grouped by the SHA-256 hash of their package ID:
+
+文件按包 ID 的 SHA-256 哈希值分目录存放：
+
+```text
+packages/
+└── <PACKAGE_ID_HASH>/
+    └── <CANDIDATE_HASH>.json
+```
+
+- **`<PACKAGE_ID_HASH>`**: `sha256(package.id)` — groups all approved versions of a given package.
+- **`<CANDIDATE_HASH>.json`**: `sha256(canonical_candidate_json)` — the exact candidate metadata file corresponding to an approved version.
+
+---
+
+## Metadata Schema / 元数据规范
+
+Each package file implements the schema-v3 specification (`https://phinix.net/schemas/plugin-package-manifest/v3`):
+
+每个元数据文件遵循 schema-v3 规范：
+
+- **`id`**: Unique package identifier (e.g., `phinix.example.basic`).
+- **`manifest`**: Declared version, dependencies, assembly bindings, and target Phinix version range.
+- **`artifact`**: Fixed GitHub release URL, asset ID, asset name, byte size, and package SHA-256.
+- **`localization`**: In-catalog localized display names, descriptions, and version change notes.
+- **`state`**: Current lifecycle state (`active`, `deprecated`, etc.).
+
+Package candidate files in this directory are immutable once merged. They are verified against cryptographically locked approval receipts in `label-approvals/` and `published/`.
+
+本目录下的候选记录一经合入即不可变，并通过 `label-approvals/` 与 `published/` 中的加密锁进行一致性验证。
