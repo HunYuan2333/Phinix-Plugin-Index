@@ -197,7 +197,7 @@ def scan(args, api):
         last_update[key] = max(last_update.get(key, ''), review['approvedAt'])
     exclusions_path = args.root / 'catalog-exclusions.json'
     excluded = set(strict_json(exclusions_path.read_bytes())['packageIds']) if exclusions_path.exists() else set()
-    errors = []; found = None
+    errors = []; found = None; bundles = []
     for name, raw in sorted(policies.items(), key=lambda item:(last_update.get(strict_json(item[1])['baseCandidateSha256'], ''), item[0])):
         value = validate_policy(strict_json(raw)); require(name == policy_path(value['packageId']), 'UpdatePolicyRejected')
         if value['packageId'] in excluded:
@@ -214,21 +214,27 @@ def scan(args, api):
             result = discover(args, api, value, base, [version(p['manifest']['version']) for p in known])
             if result is None:
                 continue
-            require(len(packages) < publisher.MAX_RECORDS, 'PublicationRecordLimit')
+            require(len(packages) + len(bundles) < publisher.MAX_RECORDS, 'PublicationRecordLimit')
             candidate, static = result; fingerprint = digest(encode(candidate)); scope = policy(candidate['package'])
             approval = dict(actor=actor, actorId=actor_id, runId=os.environ['GITHUB_RUN_ID'], trustedCommit=parent, workflow=WORKFLOW, attempt=1,
                             method='approved-source', baseCandidateSha256=value['baseCandidateSha256'], updatePolicySha256=digest(encode(value)))
             review = dict(schemaVersion=1, sourceId=SOURCE, candidateSha256=fingerprint, policySha256=digest(encode(scope)), static=static, staticSha256=digest(encode(static)),
                           issueNumber=base_review['issueNumber'], issueBodySha256=base_review['issueBodySha256'], issueUpdatedAt=base_review['issueUpdatedAt'], approvedAt=datetime.now(timezone.utc).isoformat(), approval=approval)
+            folder = args.output / fingerprint; folder.mkdir()
             for file, record in (('candidate.json', candidate), ('review.json', review), ('policy.json', scope)):
-                (args.output / file).write_bytes(encode(record))
-            read_bundle(args.output); found = fingerprint
-            break  # One evidence PR per run; failures in other sources do not prevent this one.
+                (folder / file).write_bytes(encode(record))
+            read_bundle(folder); bundles.append((candidate, review, scope)); found = fingerprint
         except (Rejected, ValueError, KeyError, TypeError, OSError, zipfile.BadZipFile, RuntimeError, subprocess.TimeoutExpired):
             import sys
             failure = sys.exc_info()[1]; code = str(failure) if isinstance(failure, Rejected) and re.fullmatch(r'[A-Za-z][A-Za-z0-9]{0,79}', str(failure)) else 'UpdateDataRejected'
             errors.append(dict(packageId=value['packageId'], code=code))
             event('updates.source_rejected', packageId=value['packageId'], reason=code)
+    if bundles:
+        for name in ('candidate.json', 'review.json', 'policy.json'):
+            (args.output / name).write_bytes((args.output / bundles[0][1]['candidateSha256'] / name).read_bytes())
+        if len(bundles) > 1:
+            (args.output / 'batch.json').write_bytes(encode(batch_receipt(bundles)))
+        found = bundles[0][1]['candidateSha256']
     (args.output / 'report.json').write_bytes(encode(dict(schemaVersion=1, candidateSha256=found, errors=errors)))
     event('updates.scan_complete', changed=found is not None, errors=len(errors), checkOnly=args.check_only)
     if os.environ.get('GITHUB_OUTPUT'):
@@ -236,24 +242,91 @@ def scan(args, api):
             stream.write('changed=' + str(found is not None and not args.check_only).lower() + '\n')
 
 
+def batch_receipt(bundles):
+    return dict(schemaVersion=2, runId=bundles[0][1]['approval']['runId'],
+                members=[dict(packageId=c['package']['id'], review=r) for c, r, _ in bundles])
+
+
+def receipt_members(value):
+    if value.get('schemaVersion') == 1:
+        return [value]
+    require(set(value) == {'schemaVersion', 'runId', 'members'} and type(value['schemaVersion']) is int and
+            value['schemaVersion'] == 2 and re.fullmatch(r'[1-9][0-9]*', value['runId']) and
+            type(value['members']) is list and 1 < len(value['members']) <= MAX_POLICIES, 'ApprovalRecordMismatch')
+    ids = set(); hashes = set(); approvals = []
+    for member in value['members']:
+        require(type(member) is dict and set(member) == {'packageId', 'review'}, 'ApprovalRecordMismatch')
+        policy_path(member['packageId']); r = member['review']; a = r['approval']
+        require(member['packageId'] not in ids and r['candidateSha256'] not in hashes and
+                re.fullmatch(r'[0-9a-f]{64}', r['candidateSha256']) and a['runId'] == value['runId'] and
+                a['workflow'] == WORKFLOW, 'ApprovalRecordMismatch')
+        ids.add(member['packageId']); hashes.add(r['candidateSha256']); approvals.append(r)
+    require(all(r['approval']['trustedCommit'] == approvals[0]['approval']['trustedCommit'] and
+                r['approval']['actor'] == approvals[0]['approval']['actor'] and
+                r['approval']['actorId'] == approvals[0]['approval']['actorId'] for r in approvals), 'ApprovalRecordMismatch')
+    return approvals
+
+
+def receipt_lock(value):
+    members = receipt_members(value)
+    if value['schemaVersion'] == 1:
+        r = members[0]
+        return dict(schemaVersion=1, runId=r['approval']['runId'], candidateSha256=r['candidateSha256'], reviewSha256=digest(encode(r)))
+    return dict(schemaVersion=2, runId=value['runId'], members=[dict(candidateSha256=r['candidateSha256'], reviewSha256=digest(encode(r))) for r in members])
+
+
+def evidence_files(value, read):
+    members = receipt_members(value)
+    if value['schemaVersion'] == 1:
+        raise Rejected('BatchEvidenceRequired')
+    expected = {}
+    for member in value['members']:
+        r = member['review']; prefix = digest(member['packageId'].encode()) + '/' + r['candidateSha256'] + '.json'
+        names = [part + '/' + prefix for part in ('packages', 'reviews', 'policies')]
+        raws = [read(name) for name in names]
+        import publisher
+        c, actual, scope = publisher.record_bundle(*raws)
+        require(actual == r and c['package']['id'] == member['packageId'], 'ApprovalRecordMismatch')
+        expected.update(dict(zip(names, raws)))
+    expected[receipt_path(members[0])] = encode(value)
+    return expected
+
+
+def prepared_bundles(folder):
+    batch = folder / 'batch.json'
+    if not batch.exists():
+        return [read_bundle(folder)]
+    value = strict_json(batch.read_bytes()); receipt_members(value)
+    bundles = [read_bundle(folder / r['candidateSha256']) for r in receipt_members(value)]
+    require(batch_receipt(bundles) == value, 'ApprovalRecordMismatch')
+    return bundles
+
+
 def propose(args, api):
-    candidate, review, scope = read_bundle(args.input); a = review['approval']
-    require(a['workflow'] == WORKFLOW and a['runId'] == os.environ.get('GITHUB_RUN_ID') and a['trustedCommit'] == os.environ.get('GITHUB_SHA'), 'UpdateContextRejected')
+    bundles = prepared_bundles(args.input); a = bundles[0][1]['approval']
     parent = index(api); labels.ancestry(api, parent, a['trustedCommit'])
-    current_policy = validate_policy(strict_json(labels.read_at(api, policy_path(candidate['package']['id']), parent)))
-    require(digest(encode(current_policy)) == a['updatePolicySha256'], 'UpdatePolicyChanged')
-    expected = expected_files(candidate, review, scope)
+    expected = {}
+    for candidate, review, scope in bundles:
+        approval = review['approval']
+        require(approval['workflow'] == WORKFLOW and approval['runId'] == os.environ['GITHUB_RUN_ID'] and
+                approval['trustedCommit'] == os.environ['GITHUB_SHA'], 'UpdateContextRejected')
+        current_policy = validate_policy(strict_json(labels.read_at(api, policy_path(candidate['package']['id']), parent)))
+        require(digest(encode(current_policy)) == approval['updatePolicySha256'], 'UpdatePolicyChanged')
+        expected.update(expected_files(candidate, review, scope))
+        api.verify_origin(candidate['package']['artifact'])
+    if len(bundles) > 1:
+        expected[receipt_path(bundles[0][1])] = encode(batch_receipt(bundles))
     tree = api.json(PREFIX + '/git/trees/' + parent + '?recursive=1')
     require(tree.get('truncated') is False and all(x.get('path') not in expected for x in tree['tree']), 'CandidateAlreadyRecorded')
-    api.verify_origin(candidate['package']['artifact'])
-    sha = commit(api, parent, expected, 'Approve source update ' + review['candidateSha256'])
+    sha = commit(api, parent, expected, 'Approve source updates ' + a['runId'])
     branch = 'codex/source-update-' + a['runId']; api.json(PREFIX + '/git/refs', 'POST', dict(ref='refs/heads/' + branch, sha=sha))
-    pull = api.json(PREFIX + '/pulls', 'POST', dict(head=branch, base='main', title='Update ' + candidate['package']['id'] + ' ' + candidate['package']['manifest']['version'],
-                   body='Automatic version inside the explicit approved-source policy. Fixed candidate ' + review['candidateSha256'] + '; static ZIP/PE checks passed. No plugin code executed.'))
+    title = 'Update ' + bundles[0][0]['package']['id'] + ' ' + bundles[0][0]['package']['manifest']['version'] if len(bundles) == 1 else 'Update ' + str(len(bundles)) + ' approved plugins'
+    pull = api.json(PREFIX + '/pulls', 'POST', dict(head=branch, base='main', title=title,
+                   body='Automatic versions inside explicit approved-source policies. Static ZIP/PE checks passed; no plugin code executed.\n' + '\n'.join(c['package']['id'] + ' ' + c['package']['manifest']['version'] + ': ' + r['candidateSha256'] for c, r, _ in bundles)))
     pull = api.json(PREFIX + '/pulls/' + str(pull['number'])); require(pull['head']['sha'] == sha, 'AdmissionPrContentChanged')
     labels.pr_content(api, pull, expected); require(index(api) == parent, 'PublicationHeadChanged')
     require(api.json(PREFIX + '/pulls/' + str(pull['number']) + '/merge', 'PUT', dict(sha=sha, merge_method='squash')).get('merged') is True, 'AdmissionMergeFailed')
-    event('updates.admitted', number=pull['number'], url=pull['html_url'], candidateSha256=review['candidateSha256'])
+    event('updates.admitted', number=pull['number'], url=pull['html_url'], candidates=len(bundles))
     if os.environ.get('GITHUB_STEP_SUMMARY'):
         Path(os.environ['GITHUB_STEP_SUMMARY']).write_text('Update evidence PR: ' + pull['html_url'] + '\n')
 
@@ -282,7 +355,24 @@ def proof(api, candidate, review, scope, snapshot, accepted):
     pulls = api.json(PREFIX + '/pulls?state=closed&per_page=2&head=HunYuan2333:codex%2Fsource-update-' + a['runId'])
     require(type(pulls) is list and len(pulls) == 1, 'AdmissionPrMissing')
     pull = api.json(PREFIX + '/pulls/' + str(pulls[0]['number'])); require(pull.get('merged') is True, 'AdmissionPrNotMerged')
-    labels.bot_identity(pull.get('merged_by', {})); labels.pr_content(api, pull, expected_files(candidate, review, scope))
+    labels.bot_identity(pull.get('merged_by', {}))
+    receipt = strict_json(labels.read_at(api, receipt_path(review), snapshot))
+    if receipt.get('schemaVersion') == 2:
+        require(review in receipt_members(receipt), 'ApprovalRecordMismatch')
+        # Cache only a fully verified immutable batch/PR body within this invocation.
+        # Every member still checks its policy, baseline, run and reviewer above.
+        cache = getattr(api, '_source_batch_evidence', None)
+        if cache is None:
+            cache = {}; api._source_batch_evidence = cache
+        key = (snapshot, digest(encode(receipt)), pull.get('head', {}).get('sha'))
+        if key not in cache:
+            expected = evidence_files(receipt, lambda name: labels.read_at(api, name, snapshot))
+            labels.pr_content(api, pull, expected)
+            require(len(cache) < MAX_POLICIES, 'UpdateSourceLimit')
+            cache[key] = True
+    else:
+        require(receipt == review, 'ApprovalRecordMismatch')
+        labels.pr_content(api, pull, expected_files(candidate, review, scope))
 
 
 def upstream(api):
@@ -306,9 +396,9 @@ def report(args, api):
     require(type(result) is dict and set(result) == {'schemaVersion', 'candidateSha256', 'errors'} and result['schemaVersion'] == 1 and
             type(result['errors']) is list and len(result['errors']) <= MAX_POLICIES, 'UpdateReportRejected')
     if getattr(args, 'admission_failed', False):
-        candidate, review, _ = read_bundle(args.input)
-        require(result['candidateSha256'] == review['candidateSha256'], 'UpdateReportRejected')
-        result['errors'].append(dict(packageId=candidate['package']['id'], code='UpdateAdmissionFailed'))
+        bundles = prepared_bundles(args.input)
+        require(result['candidateSha256'] == bundles[0][1]['candidateSha256'], 'UpdateReportRejected')
+        result['errors'].extend(dict(packageId=c['package']['id'], code='UpdateAdmissionFailed') for c, _, _ in bundles)
     for error in result['errors']:
         policy_path(error['packageId']); require(type(error['code']) is str and re.fullmatch(r'[A-Za-z][A-Za-z0-9]{0,79}', error['code']), 'UpdateReportRejected')
         title = 'Update blocked: ' + error['packageId']
@@ -328,12 +418,19 @@ def feedback(args, api):
     run = upstream(api)
     if run is None:
         return
-    parent = index(api); review = strict_json(labels.read_at(api, 'source-update-approvals/' + run + '.json', parent))
+    parent = index(api); receipt = strict_json(labels.read_at(api, 'source-update-approvals/' + run + '.json', parent))
+    members = receipt_members(receipt)
+    if args.success:
+        lock = strict_json(labels.read_at(api, 'source-update-locks/' + run + '.json', parent))
+        require(lock == receipt_lock(receipt), 'UpdatePublicationUnproven')
+    for review in members:
+        feedback_member(args, api, run, parent, review)
+
+
+def feedback_member(args, api, run, parent, review):
     require(review['approval']['runId'] == run and review['approval']['workflow'] == WORKFLOW, 'ApprovalRecordMismatch')
     package = strict_json(labels.read_at(api, 'packages/' + digest(validate_policy_id(review, api, parent).encode()) + '/' + review['candidateSha256'] + '.json', parent))['package']
     if args.success:
-        lock = strict_json(labels.read_at(api, 'source-update-locks/' + run + '.json', parent))
-        require(lock == dict(schemaVersion=1, runId=run, candidateSha256=review['candidateSha256'], reviewSha256=digest(encode(review))), 'UpdatePublicationUnproven')
         issues = api.json(PREFIX + '/issues?state=open&per_page=100')
         for issue in issues:
             if issue.get('title') == 'Update blocked: ' + package['id'] and 'pull_request' not in issue:
@@ -370,7 +467,7 @@ def main():
     args = parser.parse_args()
     args.success = args.success == 'true'
     try:
-        api = GitHub(max_calls=512, timeout=1200)
+        api = GitHub(max_calls=2048, timeout=1200)
         {'scan': scan, 'propose': propose, 'report': report, 'feedback': feedback}[args.command](args, api)
     except (Rejected, OSError, KeyError, ValueError, TypeError, subprocess.TimeoutExpired) as error:
         event('updates.rejected', reason=str(error) if isinstance(error, Rejected) else 'UpdateDataRejected'); raise SystemExit(1)

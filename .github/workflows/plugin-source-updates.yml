@@ -2,7 +2,7 @@ name: Plugin source updates
 run-name: Source update admission
 on:
   schedule:
-    - cron: '17 */6 * * *'
+    - cron: '17 * * * *'
   workflow_dispatch:
     inputs:
       check_only:
@@ -19,7 +19,7 @@ jobs:
   validate:
     if: github.repository == 'HunYuan2333/Phinix-Plugin-Index' && github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
-    timeout-minutes: 25
+    timeout-minutes: 45
     outputs:
       changed: ${{ steps.scan.outputs.changed }}
     permissions:
@@ -57,7 +57,7 @@ jobs:
     needs: validate
     if: needs.validate.outputs.changed == 'true'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 15
     permissions:
       contents: write
       pull-requests: write

@@ -157,7 +157,7 @@ class NoRedirect(urllib.request.HTTPRedirectHandler):
 
 class GitHub:
     def __init__(self, max_calls=24, timeout=240):
-        require(1 <= max_calls <= 512 and 1 <= timeout <= 1800, 'OriginBudget')
+        require(1 <= max_calls <= 2048 and 1 <= timeout <= 1800, 'OriginBudget')
         self.opener = urllib.request.build_opener(NoRedirect())
         self.deadline = time.monotonic() + timeout
         self.max_calls = max_calls

@@ -2,7 +2,7 @@
 
 上线前清理：正式 index 不展示 Playtest。`catalog-exclusions.json` 是维护者在 main 管理的下架清单，仅影响新目录的可见条目，不改写已批准版本、原 ZIP、审批或发布锁。发布仍复核全部批准记录与原件，再验证可见目录的完整依赖闭包；允许空目录。不得用该清单批准未发布版本。测试插件仅保留在独立 Playtest 仓库，用户客户端只提供正式目录的 GitHub/CF 访问切换。历史快照用于追溯，不应删除。
 
-[English](ControlledPublication.md)。2026-10-05。正常流程改为维护者加一次批准标签，后续 A2/A4 自动完成；A3 版本追踪仍未启用。
+[English](ControlledPublication.md)。2026-10-05。正常流程改为维护者加一次批准标签，后续 A2/A4 自动完成；A3 已启用每小时批量扫描：动态读取已批准来源，合格更新统一准入和发布。
 
 工坊条目沿用同一人工标签和证据流程。报告、策略与发布锁只绑定收录元数据及工坊/Mod ID，不进行 ZIP/PE 校验，也不生成 DLL 自动更新策略。发布仅展示固定工坊身份下最新批准的元数据修订，所有历史证据继续保留。
 
@@ -61,3 +61,9 @@ python3 -m unittest discover -s Extensions/PluginStore/RepositoryAutomation/test
 ```
 
 索引仓库对应路径为 `Validator/Validator.csproj` 和 `tests`。52 项回归覆盖准确人工/标签批准、操作者/事件身份、正文变化/撤标/重新加标、自动合入范围/head、成功运行与机器人证明、不可变版本/凭据锁、workflow_run 来源、上传后复核、回报和原子发布恢复。远端真人加标签是独立验收步骤；控制台/Actions 检查不代表游戏验证。
+
+## 批量来源更新
+
+`Plugin source updates` 每小时运行，也可手动触发。手动运行默认 `check_only=true`，取消勾选才会准入。每轮扫描全部已批准来源，为每个插件选择最新正式版本；单个来源失败会记录原因并继续其他来源。合格更新进入一个有完整内容校验的 PR，发布器重新验证各项证据后统一提交 stable 指针、快照描述和发布锁。无新版本不重复发布。
+
+批量准入使用内部 schemaVersion 2 的证据收据和发布锁；旧单项收据、旧发布锁保持原样。公开 catalog 仍为 schemaVersion 3，插件 manifest 仍为 schemaVersion 1，客户端协议没有变化。来源上限为 32；跨主版本、来源身份或批准范围变化仍需重新审核。
