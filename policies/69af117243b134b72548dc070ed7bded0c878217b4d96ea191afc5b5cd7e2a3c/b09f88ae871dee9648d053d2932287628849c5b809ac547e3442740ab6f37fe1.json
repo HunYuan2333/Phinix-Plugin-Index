@@ -1,0 +1,1 @@
+{"assemblyNames":["LegacyRedPacketExtension","LegacyRedPacketExtension.Client"],"channel":"github-release","dependencyIds":[],"management":"phinix-dll","mode":"manual-only","moduleIds":["builtin.legacy-redpacket"],"origin":{"ownerId":"64630568","repository":"HunYuan2333/Phinix-Legacy-RedPacket","repositoryId":"1406928729"},"packageId":"phinix.legacy.redpacket","schemaVersion":1}
