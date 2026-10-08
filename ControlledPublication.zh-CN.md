@@ -51,13 +51,13 @@ gh workflow run plugin-publish.yml --repo HunYuan2333/Phinix-Plugin-Index --ref 
 
 旧准确指纹的 `Plugin admission` 手动入口保留用于已接受人工路径的恢复；其记录仍要求真人合入准确的三个文件 PR。标签记录只允许固定的 GitHub Actions 机器人创建和合入证据 PR，不把任意机器人合入视为批准。
 
-试运行限制：八个版本记录、八份标签凭据、400 条 Issue 历史事件、总 ZIP 512 MiB、发布器 512 次 API 调用及 25 分钟 API 期限，另有每文件/包限制；扩容单独实施。作者 DLL 仅静态检查，不加载执行；客户端继续检查宿主/游戏版本和实际 CLR 兼容。正式源是 `phinix.official`，游戏默认仍为 `phinix.managed`。
+试运行限制：八个版本记录、八份标签凭据、400 条 Issue 历史事件、总 ZIP 512 MiB、发布器 512 次 API 调用及 25 分钟 API 期限，另有每文件/包限制；扩容单独实施。作者 DLL 仅静态检查，不加载执行；客户端继续检查宿主/游戏版本和实际 CLR 兼容。官方输出与客户端默认源为 `phinix.official`。
 
 ## 验证
 
 ```sh
-dotnet build Extensions/PluginStore/RepositoryAutomation/Validator/Validator.csproj --configuration Release --no-restore
-python3 -m unittest discover -s Extensions/PluginStore/RepositoryAutomation/tests -v
+dotnet build Validator/Validator.csproj --configuration Release
+python3 -m unittest discover -s tests -v
 ```
 
-索引仓库对应路径为 `Validator/Validator.csproj` 和 `tests`。52 项回归覆盖准确人工/标签批准、操作者/事件身份、正文变化/撤标/重新加标、自动合入范围/head、成功运行与机器人证明、不可变版本/凭据锁、workflow_run 来源、上传后复核、回报和原子发布恢复。远端真人加标签是独立验收步骤；控制台/Actions 检查不代表游戏验证。
+在仓库根目录执行。52 项回归覆盖准确人工/标签批准、操作者/事件身份、正文变化/撤标/重新加标、自动合入范围/head、成功运行与机器人证明、不可变版本/凭据锁、workflow_run 来源、上传后复核、回报和原子发布恢复。远端真人加标签是独立验收步骤；控制台/Actions 检查不代表游戏验证。

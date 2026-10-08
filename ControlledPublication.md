@@ -56,8 +56,8 @@ Pilot limits: eight version records, eight label receipts, 400 Issue history eve
 ## Validation
 
 ```sh
-dotnet build Extensions/PluginStore/RepositoryAutomation/Validator/Validator.csproj --configuration Release --no-restore
-python3 -m unittest discover -s Extensions/PluginStore/RepositoryAutomation/tests -v
+dotnet build Validator/Validator.csproj --configuration Release
+python3 -m unittest discover -s tests -v
 ```
 
-In the index repository use `Validator/Validator.csproj` and `tests`. 52 regressions cover exact manual and label approval, actor/event identity, edits/removal/readdition, automatic merge scope/head, successful-run and bot proof, immutable version/receipt locks, workflow-run provenance, rechecking after upload, notifications and atomic publication recovery. Remote human labeling is a distinct acceptance step; console/Actions checks are not in-game validation.
+Executed from the repository root. Automated tests cover exact manual and label approval, actor/event identity, edits/removal/readdition, automatic merge scope/head, successful-run and bot proof, immutable version/receipt locks, workflow-run provenance, rechecking after upload, notifications, and atomic publication recovery. Remote human labeling is a distinct acceptance step; console/Actions checks are not in-game validation.
