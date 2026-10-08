@@ -73,3 +73,92 @@ class ValidatorSnapshotTests(unittest.TestCase):
             with self.assertRaises(FileNotFoundError):
                 snapshot.refresh(root, source)
             self.assertEqual(target.read_bytes(), b'old')
+
+
+class SplitValidatorSnapshotTests(unittest.TestCase):
+    def fixture(self, temporary):
+        import subprocess
+        parent = Path(temporary)
+        index = parent / 'index'
+        roots = {'client': parent / 'client', 'common': parent / 'common'}
+        records = []
+        origins = {}
+        for role in ['common', 'client']:
+            root = roots[role]; root.mkdir()
+            def run(*args):
+                return subprocess.check_output(['git', '-C', str(root), *args], stderr=subprocess.DEVNULL).decode().strip()
+            run('init', '-q'); run('config', 'user.name', 'Snapshot Test'); run('config', 'user.email', 'snapshot@example.invalid')
+            run('remote', 'add', 'origin', 'https://github.com/' + snapshot.ORIGIN_REPOSITORIES[role] + '.git')
+            source = snapshot.ORIGIN_PREFIXES[role][0] + 'Test.cs'
+            path = root / source; path.parent.mkdir(parents=True); path.write_bytes(role.encode())
+            run('add', '.')
+            if role == 'client':
+                run('update-index', '--add', '--cacheinfo', '160000,' + origins['common']['commit'] + ',Dependencies/Phinix.Common')
+            run('commit', '-qm', 'trusted fixture')
+            origins[role] = {'repository': snapshot.ORIGIN_REPOSITORIES[role], 'commit': run('rev-parse', 'HEAD')}
+            target = index / ('Validator/Production/' + role + '.cs'); target.parent.mkdir(parents=True, exist_ok=True); target.write_bytes(b'old')
+            records.append({'source': source, 'snapshot': target.relative_to(index).as_posix(), 'sha256': snapshot.hashlib.sha256(b'old').hexdigest()})
+        manifest = index / 'Validator/production-provenance.json'
+        manifest.write_text(json.dumps({'schemaVersion': 1, 'files': records}))
+        return index, roots, origins, manifest
+
+    def test_split_migration_and_repeated_refresh(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            index, roots, origins, manifest = self.fixture(temporary)
+            self.assertEqual(snapshot.refresh_split(index, roots, origins), 2)
+            self.assertEqual(snapshot.refresh_split(index, roots), 2)
+            self.assertEqual(snapshot.check(index), 2)
+            self.assertEqual(snapshot.check(index, source_roots=roots), 2)
+            self.assertEqual(json.loads(manifest.read_text())['origins'], origins)
+            with self.assertRaisesRegex(ValueError, 'SnapshotSplitRootsRequired'):
+                snapshot.check(index, roots['client'])
+
+    def test_dirty_source_rejected_before_any_mutation(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            index, roots, origins, manifest = self.fixture(temporary)
+            path = roots['client'] / (snapshot.ORIGIN_PREFIXES['client'][0] + 'Test.cs'); path.write_bytes(b'candidate')
+            before = manifest.read_bytes()
+            with self.assertRaisesRegex(ValueError, 'SnapshotSourceDirty'):
+                snapshot.refresh_split(index, roots, origins)
+            self.assertEqual(manifest.read_bytes(), before)
+            self.assertEqual((index / 'Validator/Production/common.cs').read_bytes(), b'old')
+
+    def test_wrong_commit_and_missing_roots_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            index, roots, origins, manifest = self.fixture(temporary)
+            with self.assertRaisesRegex(ValueError, 'SnapshotSplitRootsRequired'):
+                snapshot.refresh_split(index, {'client': roots['client']}, origins)
+            origins['client']['commit'] = 'a' * 40
+            with self.assertRaisesRegex(ValueError, 'SnapshotCommitMismatch'):
+                snapshot.refresh_split(index, roots, origins)
+
+    def test_wrong_remote_rejected(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            index, roots, origins, manifest = self.fixture(temporary)
+            snapshot.git(roots['common'], 'remote', 'set-url', 'origin', 'https://example.invalid/candidate.git')
+            with self.assertRaisesRegex(ValueError, 'SnapshotRepositoryMismatch'):
+                snapshot.refresh_split(index, roots, origins)
+
+    def test_shared_gitlink_must_match_pinned_common(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            index, roots, origins, manifest = self.fixture(temporary)
+            snapshot.git(roots['common'], '-c', 'user.name=Test', '-c', 'user.email=test@example.invalid', 'commit', '--allow-empty', '-qm', 'new shared')
+            origins['common']['commit'] = snapshot.git(roots['common'], 'rev-parse', 'HEAD').decode().strip()
+            with self.assertRaisesRegex(ValueError, 'SnapshotSharedPinMismatch'):
+                snapshot.refresh_split(index, roots, origins)
+
+    def test_record_cannot_cross_repository_boundary(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            index, roots, origins, manifest = self.fixture(temporary)
+            snapshot.refresh_split(index, roots, origins)
+            value = json.loads(manifest.read_text()); value['files'][0]['origin'] = 'client'; manifest.write_text(json.dumps(value))
+            with self.assertRaisesRegex(ValueError, 'SnapshotPathRejected'):
+                snapshot.check(index)
+
+    def test_invalid_provenance_rejected_without_checkout(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            index, roots, origins, manifest = self.fixture(temporary)
+            snapshot.refresh_split(index, roots, origins)
+            value = json.loads(manifest.read_text()); value['origins']['common']['commit'] = 'dev'; manifest.write_text(json.dumps(value))
+            with self.assertRaisesRegex(ValueError, 'SnapshotCommitRejected'):
+                snapshot.check(index)

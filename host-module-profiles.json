@@ -6,35 +6,35 @@
       "assemblies": [
         {
           "name": "ChatExtension",
-          "sha256": "cdfcecd5fa48ce35976c9ffe3453533779d15186ade7177df0037a9a5fe606bb"
+          "sha256": "c20a12e8d35f1ae6c7a6bc577591b03d539a71cd7f6c04cd4f65799d5868a92f"
         },
         {
           "name": "TradeExtension",
-          "sha256": "30eb06f92d3687e4b58673d0cf9fa454cb6035fd2f1fe51a55bf58ece58e1e42"
+          "sha256": "e286563adfe8adbca87f7b73bc3cf2c4da1d3bcfbb155ced4cfdc8e5cbae736e"
         },
         {
           "name": "InventoryExtension",
-          "sha256": "35633540c9b28d0c8ed23b8386a11d5a222a41e330d5ee00dea50b4d7d08552b"
+          "sha256": "b5f5528f3f9c54cc028b9c9ea52239110183b350adbeb2ee1e33b73cc9d0bd71"
         },
         {
           "name": "LegacyAdapter.Client",
-          "sha256": "a02794262a0b0895159d271f77a511ed010a805d58865ba652146f7b32fd1934"
+          "sha256": "45cb08a8e3b14911e31ab753c81e5ff179103f0be49d6db2d8283e744639816a"
         },
         {
           "name": "ChatExtension.Client",
-          "sha256": "4a177bed2eca966b2701a795def2e1429ab5067478b093f601ad518bdbbfc806"
+          "sha256": "e6af79588af4fe8df1d840059f390f354df7b29a99ead6ff5298339dcb67bd04"
         },
         {
           "name": "InventoryExtension.Client",
-          "sha256": "3cb32d90d195547abf71a73a233c77d7db8198439a37359c9c409ac038792f0b"
+          "sha256": "90d0d325ca50396c2144652a5c33f3162733458964ea13ebf73e2dda6833ee5b"
         },
         {
           "name": "TradeExtension.Client",
-          "sha256": "e4b9aed7d95bfb4e5b7be84916eeea5baa1067c6323fcf30a31ab99e8d2cb2af"
+          "sha256": "8a557dea7a5849363c7cd9610ac158e26e1eddd155f335802a246e21ab7b68fa"
         },
         {
           "name": "PluginStore.Client",
-          "sha256": "ff74d36c9f5fbe71092da74684b162d25c301c41fcbd131c2056795c7ad4f4f0"
+          "sha256": "aec027b4bea59aa8920db0ad601d52a8bd4dd9921c44d5d67a6fa967e4baae78"
         }
       ],
       "modules": [

@@ -11,3 +11,21 @@ dotnet Extensions/PluginStore/Tools/ManagedPackageTool/bin/Release/net10.0/Manag
 ```
 
 Review the deployment range and discovered graph, then replace this repository's configuration through a normal reviewed code PR. Every assembly has a SHA-256 provenance value; the export reads only immediate DLLs with input limits and never executes constructors or attributes. The supplied development profile was generated from the 2026-10-06 clean main output (8 assemblies/5 modules). Re-export for a changed host product; do not add business IDs to validator branches or delete a plugin's real module dependencies to make publication pass.
+
+## F6 split source checkpoint (2026-10-08)
+
+The profile was re-exported from the split Phinix-Rework client output: 8 assemblies and the same 5-module dependency graph. Historical catalogs, approvals and published ZIPs are not rewritten.
+
+`Validator/production-provenance.json` schema 2 records the exact Client and Common repository commits separately. Each frozen source declares its owning origin. Integrity-only CI needs no source checkout:
+
+```sh
+python3 scripts/validator_snapshot.py check
+```
+
+For source comparison, provide both trusted checkouts at the recorded commits:
+
+```sh
+python3 scripts/validator_snapshot.py check --client-root /path/to/Phinix-Rework --common-root /path/to/Phinix-Rework-Common
+```
+
+An explicit refresh accepts the same two roots and optional `--client-commit FULL_SHA --common-commit FULL_SHA` to advance provenance. Both pins must be supplied together, the Client gitlink must match Common, canonical repository origins and HEAD must match, and selected working files must equal committed blobs. Dirty files, mismatched pins, path escapes and cross-origin sources are rejected before mutation. Schema-1 monorepo checks remain supported for historical fixtures; schema-2 cannot use `--source-root`. Candidate repositories or floating branches are never refresh inputs.
