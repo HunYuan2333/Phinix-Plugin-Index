@@ -67,3 +67,27 @@ In the index repository use `Validator/Validator.csproj` and `tests`. 52 regress
 `Plugin source updates` runs hourly and supports manual dispatch. Manual runs default to `check_only=true`; select false to admit updates. Each scan checks all approved sources and selects the newest official release for each plugin. A rejected source is reported without stopping other sources. Eligible updates share one content-verified evidence PR; the publisher verifies each record before committing one stable pointer, descriptor and lock set. No new versions means no repeated publication.
 
 Batch evidence receipts and locks use internal schemaVersion 2. Existing single-update receipts and locks remain unchanged. Public catalogs remain schemaVersion 3 and plugin manifests remain schemaVersion 1; client protocols do not change. The source limit is 32. Major version, origin identity or policy-scope changes still require review.
+
+## Release notifications and concurrent writers
+
+Hourly scanning remains best effort. A plugin's successful main release may dispatch
+`plugin-source-updates.yml` on main with `check_only=false`. This wakes the existing
+scanner for all approved update policies; it does not approve a new source or bypass
+origin, digest, version or publication checks. The token owner must be an existing
+Index maintainer. A maintainer-owned fine-grained token needs only Index Actions
+read/write; never distribute this credential to third-party plugin authors.
+
+All four metadata-writing workflows share `index-metadata` with `queue: max` and
+`cancel-in-progress: false`. GitHub allows at most 100 pending runs in this queue;
+notifications beyond that bound may be rejected. Pending publication is not replaced
+by a new scan. An event's trusted SHA can become stale while waiting: source scans
+reject it before building, and existing commit/proof checks still reject other stale
+writes. Start a **new** main dispatch, rather than rerunning the old event. Plugin
+notifications do this with bounded retries; missing credentials or failures warn
+without changing the plugin Release. For manual recovery, dispatch the scanner on
+current main, or run controlled publication with `check_only=false` after inspecting
+its validation results. Never delete receipts/locks to force publication.
+
+Scan success is not catalog publication success. Inspect the scan report, candidate
+admission and controlled publication run, then the published catalog version. A
+stable Release without an approved update policy still requires normal admission.

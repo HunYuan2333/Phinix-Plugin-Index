@@ -67,3 +67,22 @@ python3 -m unittest discover -s Extensions/PluginStore/RepositoryAutomation/test
 `Plugin source updates` 每小时运行，也可手动触发。手动运行默认 `check_only=true`，取消勾选才会准入。每轮扫描全部已批准来源，为每个插件选择最新正式版本；单个来源失败会记录原因并继续其他来源。合格更新进入一个有完整内容校验的 PR，发布器重新验证各项证据后统一提交 stable 指针、快照描述和发布锁。无新版本不重复发布。
 
 批量准入使用内部 schemaVersion 2 的证据收据和发布锁；旧单项收据、旧发布锁保持原样。公开 catalog 仍为 schemaVersion 3，插件 manifest 仍为 schemaVersion 1，客户端协议没有变化。来源上限为 32；跨主版本、来源身份或批准范围变化仍需重新审核。
+
+## Release 通知与并发写入
+
+小时扫描作为尽力而为的补漏。插件 main 正式发行成功后，可调用现有
+`plugin-source-updates.yml` 的 main 手动入口，传 `check_only=false`，检查全部
+获批更新策略。通知不能审批新来源，也不能跳过来源、摘要、版本或发布校验。
+调用令牌属于已有 Index 维护者，使用只限 Index 的 Actions 读写权限；不要向
+第三方作者分发维护者凭据。
+
+四个元数据写入流程共享 `index-metadata`，同时设置 `queue: max` 和
+`cancel-in-progress: false`。GitHub 队列最多容纳 100 个等待任务，超过上限
+可能被拒绝；新扫描不再替换待执行的发布任务。排队期间事件 SHA 可能过期：
+扫描在编译前拒绝过期快照，原有提交和证据校验继续拒绝其他过期写入。
+此时重新触发当前 main，不能重跑旧事件来绕过 SHA 检查。插件通知端有限重试；
+缺凭据或重试耗尽只警告，不改变插件 Release。人工恢复可在当前 main 新开扫描，
+或先检查受控发布验证结果，再以 `check_only=false` 执行受控发布；不要删除收据或锁。
+
+扫描成功不等于目录发布成功。需分别查看扫描报告、候选准入和受控发布结果，
+最后确认已发布目录版本。没有获批更新策略的正式 Release 仍需正常准入。
