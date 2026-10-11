@@ -60,4 +60,4 @@ dotnet build Validator/Validator.csproj --configuration Release
 python3 -m unittest discover -s tests -v
 ```
 
-在仓库根目录执行。52 项回归覆盖准确人工/标签批准、操作者/事件身份、正文变化/撤标/重新加标、自动合入范围/head、成功运行与机器人证明、不可变版本/凭据锁、workflow_run 来源、上传后复核、回报和原子发布恢复。远端真人加标签是独立验收步骤；控制台/Actions 检查不代表游戏验证。
+在仓库根目录执行。自动化测试覆盖准确人工/标签批准、操作者/事件身份、正文变化/撤标/重新加标、自动合入范围/head、成功运行与机器人证明、不可变版本/凭据锁、workflow_run 来源、上传后复核、回报和原子发布恢复。远端真人加标签是独立验收步骤；控制台/Actions 检查不代表游戏验证。
