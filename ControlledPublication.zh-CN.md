@@ -66,7 +66,7 @@ python3 -m unittest discover -s tests -v
 
 `Plugin source updates` 每小时运行，也可手动触发。手动运行默认 `check_only=true`，取消勾选才会准入。每轮扫描全部已批准来源，为每个插件选择最新正式版本；单个来源失败会记录原因并继续其他来源。合格更新进入一个有完整内容校验的 PR，发布器重新验证各项证据后统一提交 stable 指针、快照描述和发布锁。无新版本不重复发布。
 
-批量准入使用内部 schemaVersion 2 的证据收据和发布锁；旧单项收据、旧发布锁保持原样。公开 catalog 仍为 schemaVersion 3，插件 manifest 仍为 schemaVersion 1，客户端协议没有变化。来源上限为 32；跨主版本、来源身份或批准范围变化仍需重新审核。
+批量准入使用内部 schemaVersion 2 的证据收据和发布锁；旧单项收据、旧发布锁保持原样。公开 catalog 仍为 schemaVersion 3，插件 manifest 支持 schemaVersion 1 与双版本 schemaVersion 2，客户端协议没有变化。来源上限为 32；跨主版本、来源身份或批准范围变化仍需重新审核。
 
 ## Release 通知与并发写入
 
@@ -86,4 +86,3 @@ python3 -m unittest discover -s tests -v
 
 扫描成功不等于目录发布成功。需分别查看扫描报告、候选准入和受控发布结果，
 最后确认已发布目录版本。没有获批更新策略的正式 Release 仍需正常准入。
-
