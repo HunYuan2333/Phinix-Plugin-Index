@@ -2,7 +2,7 @@
 
 Pre-launch cleanup: the official index does not list Playtest. Maintainers own `catalog-exclusions.json` on main; it excludes listings from new catalogs without changing accepted versions, ZIPs, approvals or publication locks. Publication still rechecks all approved records/artifacts and then verifies the complete visible dependency closure; an empty catalog is valid. Exclusions cannot authorize unpublished versions. Keep the developer fixture only in its standalone repository. The player client offers only GitHub/CF access to the official index. Keep historical snapshots for audit.
 
-[中文](ControlledPublication.zh-CN.md). 2026-10-05. The normal path is one maintainer approval label followed by automatic A2/A4. A3 version monitoring remains disabled.
+[中文](ControlledPublication.zh-CN.md). 2026-10-05. The normal path is one maintainer approval label followed by automatic A2/A4. A3 scans all approved sources hourly, admits eligible updates in one evidence PR and publishes one catalog snapshot.
 
 Workshop candidates follow the same human label and evidence flow. Their reports, policies and locks bind only listing metadata and the Workshop/Mod IDs; they have no ZIP/PE checks or DLL auto-update policy. Publication includes only the latest approved metadata revision for each fixed Workshop identity and retains all prior evidence.
 
@@ -27,7 +27,7 @@ Static failures mention the submitter on the unchanged Issue with the code, corr
 
 ## Evidence and permissions
 
-New versions add exactly four metadata files: `packages/ID_HASH/CANDIDATE_HASH.json`, `reviews/...`, `policies/...`, and `label-approvals/RUN_ID.json`. The review binds source, canonical candidate and Issue body hashes, actor/numeric ID, label name/event ID/time, trusted workflow/run/commit/attempt, static report and policy hashes. The policy pins repository/owner IDs, channel, management, assembly/module identities and dependency IDs; **manual-only** means each version still needs approval, not that post-approval automation is disabled. A3 automatic version admission requires separate implementation.
+New versions add exactly four metadata files: `packages/ID_HASH/CANDIDATE_HASH.json`, `reviews/...`, `policies/...`, and `label-approvals/RUN_ID.json`. The review binds source, canonical candidate and Issue body hashes, actor/numeric ID, label name/event ID/time, trusted workflow/run/commit/attempt, static report and policy hashes. The policy pins repository/owner IDs, channel, management, assembly/module identities and dependency IDs; **manual-only** means each version still needs approval, not that post-approval automation is disabled. A3 admits versions only within an explicit approved-source update policy.
 
 An identical already published candidate creates only a new label receipt. It rechecks the same artifact and republishes a snapshot with one catalog entry, preserving the original review, version lock and DLL asset. A changed candidate for an accepted ID/version is rejected. `approval-locks/RUN_ID.json` permanently binds the receipt hash after publication. This supports testing the new label path with Playtest 1.3.0 without replacing an accepted version.
 
@@ -60,4 +60,35 @@ dotnet build Validator/Validator.csproj --configuration Release
 python3 -m unittest discover -s tests -v
 ```
 
-Executed from the repository root. Automated tests cover exact manual and label approval, actor/event identity, edits/removal/readdition, automatic merge scope/head, successful-run and bot proof, immutable version/receipt locks, workflow-run provenance, rechecking after upload, notifications, and atomic publication recovery. Remote human labeling is a distinct acceptance step; console/Actions checks are not in-game validation.
+In the index repository use `Validator/Validator.csproj` and `tests`. Regression tests cover exact manual and label approval, actor/event identity, edits/removal/readdition, automatic merge scope/head, successful-run and bot proof, immutable version/receipt locks, workflow-run provenance, rechecking after upload, notifications and atomic publication recovery. Remote human labeling is a distinct acceptance step; console/Actions checks are not in-game validation.
+
+## Batched source updates
+
+`Plugin source updates` runs hourly and supports manual dispatch. Manual runs default to `check_only=true`; select false to admit updates. Each scan checks all approved sources and selects the newest official release for each plugin. A rejected source is reported without stopping other sources. Eligible updates share one content-verified evidence PR; the publisher verifies each record before committing one stable pointer, descriptor and lock set. No new versions means no repeated publication.
+
+Batch evidence receipts and locks use internal schemaVersion 2. Existing single-update receipts and locks remain unchanged. Public catalogs remain schemaVersion 3 and plugin manifests remain schemaVersion 1; client protocols do not change. The source limit is 32. Major version, origin identity or policy-scope changes still require review.
+
+## Release notifications and concurrent writers
+
+Hourly scanning remains best effort. A plugin's successful main release may dispatch
+`plugin-source-updates.yml` on main with `check_only=false`. This wakes the existing
+scanner for all approved update policies; it does not approve a new source or bypass
+origin, digest, version or publication checks. The token owner must be an existing
+Index maintainer. A maintainer-owned fine-grained token needs only Index Actions
+read/write; never distribute this credential to third-party plugin authors.
+
+All four metadata-writing workflows share `index-metadata` with `queue: max` and
+`cancel-in-progress: false`. GitHub allows at most 100 pending runs in this queue;
+notifications beyond that bound may be rejected. Pending publication is not replaced
+by a new scan. An event's trusted SHA can become stale while waiting: source scans
+reject it before building, and existing commit/proof checks still reject other stale
+writes. Start a **new** main dispatch, rather than rerunning the old event. Plugin
+notifications do this with bounded retries; missing credentials or failures warn
+without changing the plugin Release. For manual recovery, dispatch the scanner on
+current main, or run controlled publication with `check_only=false` after inspecting
+its validation results. Never delete receipts/locks to force publication.
+
+Scan success is not catalog publication success. Inspect the scan report, candidate
+admission and controlled publication run, then the published catalog version. A
+stable Release without an approved update policy still requires normal admission.
+

@@ -200,6 +200,8 @@ class SourceUpdateTests(unittest.TestCase):
             with patch.object(updates,'discover',return_value=(candidate,dict(original['static'],version='1.3.1'))):
                 updates.scan(SimpleNamespace(root=root,output=root/'out',check_only=False,validator=VALIDATOR),FakeApi())
             candidate, review, scope=admission.read_bundle(root/'out')
+            for name, raw in updates.expected_files(candidate, review, scope).items():
+                target=root/name;target.parent.mkdir(parents=True,exist_ok=True);target.write_bytes(raw)
             run=dict(event='workflow_dispatch',path=updates.WORKFLOW,display_title=updates.TITLE,head_branch='main',head_sha=HEAD,conclusion='success',status='completed',run_attempt=1,
                      head_repository=dict(id=int(admission.REPOSITORY_ID)),actor=dict(type='User',login='Owner',id=7))
             class Api(FakeApi):
@@ -247,3 +249,121 @@ class SourceUpdateTests(unittest.TestCase):
             api.writes=[];lock['candidateSha256']='0'*64
             with self.assertRaises(bot.Rejected):updates.feedback(SimpleNamespace(success=True,input=None),api)
             self.assertEqual(api.writes,[])
+
+class BatchSourceUpdateTests(unittest.TestCase):
+    def inputs(self, root, count=3):
+        results = []
+        for i in range(count):
+            c, r, _ = bundle(); c['package']['id'] = 'phinix.fixture.' + str(i)
+            c['package']['manifest']['packageId'] = c['package']['id']
+            fingerprint = bot.digest(bot.encode(c)); scope = admission.policy(c['package'])
+            r.update(candidateSha256=fingerprint, policySha256=bot.digest(bot.encode(scope)))
+            r['static']['packageId'] = c['package']['id']; r['staticSha256'] = bot.digest(bot.encode(r['static']))
+            value = dict(schemaVersion=1, packageId=c['package']['id'], baseCandidateSha256=fingerprint,
+                         mode='same-major', assetPrefix=c['package']['artifact']['assetName'][:-len(c['package']['manifest']['version']+'.zip')])
+            for name, record in zip(admission.paths(c['package'], fingerprint), (c, r, scope)):
+                p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(bot.encode(record))
+            for name, raw in publisher.locks_for([(c,r,scope)]).items():
+                p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(raw)
+            p=root/updates.policy_path(value['packageId']);p.parent.mkdir(exist_ok=True);p.write_bytes(bot.encode(value))
+            results.append((c,r,value))
+        return results
+
+    def scan(self, root, failure=None):
+        def discover(args,api,value,base,accepted):
+            if value['packageId']==failure:raise bot.Rejected('UpdateScopeChanged')
+            c=next_candidate(base);static=dict(bundle()[1]['static'],packageId=c['package']['id'],version='1.3.1')
+            return c,static
+        with patch.dict(os.environ,CONTEXT,clear=True),patch.object(updates,'discover',side_effect=discover):
+            updates.scan(SimpleNamespace(root=root,output=root/'out',check_only=False,validator=VALIDATOR),FakeApi())
+        return updates.prepared_bundles(root/'out')
+
+    def test_one_scan_prepares_all_three_and_one_content_bound_receipt(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);self.inputs(root);bundles=self.scan(root)
+            self.assertEqual(len(bundles),3)
+            receipt=bot.strict_json((root/'out/batch.json').read_bytes());self.assertEqual(len(updates.receipt_members(receipt)),3)
+            files={}
+            for c,r,s in bundles:
+                files.update(dict(zip(admission.paths(c['package'],r['candidateSha256']),map(bot.encode,(c,r,s)))))
+            expected=updates.evidence_files(receipt,files.__getitem__)
+            self.assertEqual(len(expected),10)
+            lock=updates.receipt_lock(receipt);self.assertEqual(len(lock['members']),3)
+            self.assertEqual(len({m['candidateSha256'] for m in lock['members']}),3)
+
+    def test_new_approved_sources_are_discovered_without_workflow_edits(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);self.inputs(root,5);bundles=self.scan(root)
+            self.assertEqual(len(bundles),5)
+            self.assertEqual({c['package']['id'] for c,_,_ in bundles},{'phinix.fixture.'+str(i) for i in range(5)})
+            receipt=bot.strict_json((root/'out/batch.json').read_bytes())
+            self.assertEqual(len(updates.receipt_lock(receipt)['members']),5)
+
+    def test_bad_source_does_not_block_other_two(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);self.inputs(root);bundles=self.scan(root,'phinix.fixture.1')
+            self.assertEqual({c['package']['id'] for c,_,_ in bundles},{'phinix.fixture.0','phinix.fixture.2'})
+            report=bot.strict_json((root/'out/report.json').read_bytes())
+            self.assertEqual(report['errors'],[dict(packageId='phinix.fixture.1',code='UpdateScopeChanged')])
+
+    def test_duplicate_or_rebound_members_are_rejected(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);self.inputs(root);bundles=self.scan(root);receipt=updates.batch_receipt(bundles)
+            for field,value in [('packageId',receipt['members'][0]['packageId']),('review',receipt['members'][0]['review'])]:
+                bad=copy.deepcopy(receipt);bad['members'][1][field]=value
+                with self.assertRaises(bot.Rejected):updates.receipt_members(bad)
+            bad=copy.deepcopy(receipt);bad['members'][1]['review']['approval']['runId']='999'
+            with self.assertRaises(bot.Rejected):updates.receipt_members(bad)
+            bad=copy.deepcopy(receipt);bad['members'][1]['review']['approval']['trustedCommit']='d'*40
+            with self.assertRaises(bot.Rejected):updates.receipt_members(bad)
+
+    def test_batch_propose_creates_and_merges_one_pr_with_all_exact_files(self):
+        with tempfile.TemporaryDirectory() as temp,patch.dict(os.environ,CONTEXT,clear=True):
+            root=Path(temp);self.inputs(root);bundles=self.scan(root)
+            class Api(FakeApi):
+                def json(self,path,method='GET',data=None):
+                    if method=='GET' and '/git/trees/' in path:return dict(truncated=False,tree=[])
+                    if method=='POST' and path.endswith('/pulls'):
+                        self.writes.append((path,method,data));return dict(number=33)
+                    if method=='GET' and path.endswith('/pulls/33'):return dict(number=33,html_url='https://github.com/example/pull/33',head=dict(sha='b'*40))
+                    if method=='PUT' and path.endswith('/merge'):
+                        self.writes.append((path,method,data));return dict(merged=True)
+                    return super().json(path,method,data)
+            api=Api()
+            with patch.object(updates.labels,'read_at',side_effect=lambda api,name,ref:(root/name).read_bytes()),patch.object(updates.labels,'ancestry'),patch.object(updates,'commit',return_value='b'*40) as commit,patch.object(updates.labels,'pr_content') as pr:
+                updates.propose(SimpleNamespace(input=root/'out'),api)
+                self.assertEqual(len(commit.call_args.args[2]),10)
+                self.assertEqual(len(pr.call_args.args[2]),10)
+                self.assertEqual(sum(method=='POST' and path.endswith('/pulls') for path,method,_ in api.writes),1)
+                self.assertEqual(sum(method=='PUT' and path.endswith('/merge') for path,method,_ in api.writes),1)
+
+    def test_full_source_bound_has_no_fixed_plugin_count(self):
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);self.inputs(root,updates.MAX_POLICIES);bundles=self.scan(root)
+            self.assertEqual(len(bundles),updates.MAX_POLICIES)
+            receipt=updates.batch_receipt(bundles)
+            files={}
+            for c,r,s in bundles:files.update(dict(zip(admission.paths(c['package'],r['candidateSha256']),map(bot.encode,(c,r,s)))))
+            self.assertLessEqual(len(updates.evidence_files(receipt,files.__getitem__)),100)
+
+    def test_batch_proof_verifies_every_member_but_reads_pr_contents_once(self):
+        with tempfile.TemporaryDirectory() as temp,patch.dict(os.environ,CONTEXT,clear=True):
+            root=Path(temp);self.inputs(root);bundles=self.scan(root);receipt=updates.batch_receipt(bundles)
+            for c,r,s in bundles:
+                for name,raw in updates.expected_files(c,r,s).items():
+                    p=root/name;p.parent.mkdir(parents=True,exist_ok=True);p.write_bytes(raw)
+            (root/updates.receipt_path(bundles[0][1])).write_bytes(bot.encode(receipt))
+            run=dict(event='workflow_dispatch',path=updates.WORKFLOW,display_title=updates.TITLE,head_branch='main',head_sha=HEAD,conclusion='success',status='completed',run_attempt=1,
+                     head_repository=dict(id=int(admission.REPOSITORY_ID)),actor=dict(type='User',login='Owner',id=7))
+            class Api(FakeApi):
+                def json(self,path,method='GET',data=None):
+                    if '/actions/runs/' in path:return self.run
+                    if '/pulls?' in path:return [dict(number=33)]
+                    if path.endswith('/pulls/33'):return dict(merged=True,head=dict(sha='b'*40),merged_by=dict(type='Bot',login='github-actions[bot]',id=int(updates.labels.BOT_ID)))
+                    return super().json(path,method,data)
+            api=Api();api.run=run
+            with patch.object(updates.labels,'read_at',side_effect=lambda api,name,ref:(root/name).read_bytes()),patch.object(publisher,'approval_proof'),patch.object(updates.labels,'ancestry'),patch.object(updates.labels,'pr_content') as pr:
+                for c,r,s in bundles:updates.proof(api,c,r,s,'c'*40,False)
+                self.assertEqual(pr.call_count,1);self.assertEqual(len(pr.call_args.args[2]),10)
+                api.run=dict(run,conclusion='failure')
+                with self.assertRaises(bot.Rejected):updates.proof(api,*bundles[0],'c'*40,False)

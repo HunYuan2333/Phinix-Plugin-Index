@@ -315,10 +315,10 @@ def publish(args, api):
     approval_locks, old_approval_locks, pending = label_receipts(args, api, snapshot, records, old_locks, trigger)
     receipts = files(args.root, 'source-update-approvals'); old_update_locks = files(args.root, 'source-update-locks'); update_locks = {}
     for name, raw in receipts.items():
-        review = strict_json(raw); run = review['approval']['runId']
-        require(review['approval']['workflow'] == source_updates.WORKFLOW and name == source_updates.receipt_path(review) and
-                any(review == r for _, r, _ in records), 'ApprovalRecordMismatch')
-        update_locks['source-update-locks/' + run + '.json'] = encode(dict(schemaVersion=1, runId=run, candidateSha256=review['candidateSha256'], reviewSha256=digest(raw)))
+        receipt = strict_json(raw); members = source_updates.receipt_members(receipt); run = members[0]['approval']['runId']
+        require(name == source_updates.receipt_path(members[0]) and
+                all(r['approval']['workflow'] == source_updates.WORKFLOW and any(r == record for _, record, _ in records) for r in members), 'ApprovalRecordMismatch')
+        update_locks['source-update-locks/' + run + '.json'] = encode(source_updates.receipt_lock(receipt))
     require(all(source_updates.receipt_path(r) in receipts for _, r, _ in records if r['approval']['workflow'] == source_updates.WORKFLOW), 'ApprovalRecordMissing')
     require(source_trigger is None or 'source-update-approvals/' + source_trigger + '.json' in receipts, 'PublicationTriggerRejected')
     continuity(old_update_locks, update_locks)
@@ -372,7 +372,7 @@ def main():
     parser.add_argument('--check-only', action='store_true')
     args = parser.parse_args()
     try:
-        publish(args, GitHub(max_calls=512, timeout=1500))
+        publish(args, GitHub(max_calls=2048, timeout=1500))
     except (Rejected, OSError, KeyError, TypeError, ValueError, subprocess.TimeoutExpired) as error:
         event('publication.rejected', reason=str(error) if isinstance(error, Rejected) else 'InvalidPublicationData')
         raise SystemExit(1)
