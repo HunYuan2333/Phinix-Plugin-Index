@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """Project package-owned language files and build validated v3 catalog drafts. No remote writes or approvals."""
 import argparse
+from manifest_profiles import primary as manifest_primary, product_version, scope as manifest_scope, resource_prefix
 import copy
 import hashlib
 import json
@@ -62,7 +63,7 @@ def project(candidate, payload, validator):
     require(package.get('channel') == 'github-release' and package.get('management') == 'phinix-dll', 'UnsupportedRoute')
     require('name' not in package and 'summary' not in package, 'UnexpectedField')
     require(payload is not None, 'PayloadRequired')
-    artifact = package['artifact']; manifest = package['manifest']
+    artifact = package['artifact']; manifest = manifest_primary(package['manifest']); prefix=resource_prefix(package['manifest'])
     require(payload.is_file() and not payload.is_symlink() and payload.stat().st_size == artifact['sizeBytes'] and 0 < artifact['sizeBytes'] <= 128 * 1024 * 1024, 'PayloadSizeMismatch')
     digest = hashlib.sha256()
     with payload.open('rb') as stream:
@@ -78,8 +79,8 @@ def project(candidate, payload, validator):
         names = [f.filename for f in archive.infolist()]
         require(len(set(names)) == len(names), 'ArchivePathConflict')
         for name in declaration['files']:
-            require(name in resources and name in names, 'InvalidLocalizationResource')
-            entry = archive.getinfo(name); resource = resources[name]
+            require(name in resources and prefix+name in names, 'InvalidLocalizationResource')
+            entry = archive.getinfo(prefix+name); resource = resources[name]
             require(0 < entry.file_size == resource['length'] <= 128 * 1024, 'LocalizationLimit')
             total += entry.file_size; require(total <= 1024 * 1024, 'LocalizationLimit')
             raw = archive.read(entry); require(hashlib.sha256(raw).hexdigest() == resource['sha256'], 'LocalizationDigestMismatch')
@@ -108,7 +109,7 @@ def build(records, source, snapshot, validator):
         require(type(value) is dict and set(value) == {'schemaVersion', 'package'} and type(value['schemaVersion']) is int and value['schemaVersion'] == 1, 'SubmissionEnvelope')
         packages.append(value['package'])
     require(all(type(p) is dict and isinstance(p.get('id'), str) and (p.get('manifest') is None or type(p['manifest']) is dict) for p in packages), 'InvalidPackage')
-    packages.sort(key=lambda p: (p['id'], (p.get('manifest') or {}).get('version', 'workshop')))
+    packages.sort(key=lambda p: (p['id'], product_version(p['manifest']) if p.get('manifest') else 'workshop'))
     raw = encode({'schemaVersion': 3, 'sourceId': source, 'snapshotId': snapshot, 'packages': packages})
     require(len(raw) <= 2 * 1024 * 1024, 'DocumentLimit')
     with tempfile.TemporaryDirectory() as temporary:

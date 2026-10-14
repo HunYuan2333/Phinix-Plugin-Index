@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """A3: explicit maintainer policy, fixed release discovery, trusted evidence and publication."""
 import argparse
+from manifest_profiles import primary as manifest_primary, product_version, scope as manifest_scope, resource_prefix
 import copy
 from datetime import datetime, timezone
 import os
@@ -44,7 +45,7 @@ def default_policy(candidate, review):
     p = candidate['package']
     if is_workshop(p):
         return None
-    text = p['manifest']['version']; name = p['artifact']['assetName']
+    text = product_version(p['manifest']); name = p['artifact']['assetName']
     # Existing accepted records stay unchanged. Standard stable asset names allow
     # a new first-time label approval to carry its explicit source-update scope.
     if not re.fullmatch(r'(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)\.(0|[1-9][0-9]*)', text) or not name.endswith(text + '.zip'):
@@ -69,27 +70,25 @@ def baseline(value, raws, lock):
     p = candidate['package']
     require(p['id'] == value['packageId'] and review['candidateSha256'] == value['baseCandidateSha256'] and
             review['approval']['workflow'] in (MANUAL_WORKFLOW, labels.WORKFLOW) and
-            lock == dict(schemaVersion=1, packageId=p['id'], version=p['manifest']['version'],
+            lock == dict(schemaVersion=1, packageId=p['id'], version=product_version(p['manifest']),
                          candidateSha256=review['candidateSha256'], artifactSha256=p['artifact']['sha256']), 'UpdateBaselineRejected')
-    require(p['artifact']['assetName'] == value['assetPrefix'] + p['manifest']['version'] + '.zip', 'UpdateAssetPolicyRejected')
-    version(p['manifest']['version'])
+    require(p['artifact']['assetName'] == value['assetPrefix'] + product_version(p['manifest']) + '.zip', 'UpdateAssetPolicyRejected')
+    version(product_version(p['manifest']))
     return candidate, review, scope
 
 
 def lock_path(package):
-    return 'publication-locks/' + digest(package['id'].encode()) + '/' + digest(package['manifest']['version'].encode()) + '.json'
+    return 'publication-locks/' + digest(package['id'].encode()) + '/' + digest(product_version(package['manifest']).encode()) + '.json'
 
 
 def permitted(value, base, candidate):
     old, new = base['package'], candidate['package']
     require(new['id'] == value['packageId'] and policy(old) == policy(new), 'UpdateScopeChanged')
-    a, b = version(old['manifest']['version']), version(new['manifest']['version'])
+    a, b = version(product_version(old['manifest'])), version(product_version(new['manifest']))
     require(b > a and b[0] == a[0], 'UpdateVersionOutsidePolicy')
     require(new['author'] == old['author'] and new['license'] == old['license'] and new['tags'] == old['tags'] and
-            new['state'] == 'active' and new['manifest']['targetFramework'] == old['manifest']['targetFramework'] and
-            sorted(new['manifest']['compatibility']['rimWorldVersions']) == sorted(old['manifest']['compatibility']['rimWorldVersions']) and
-            sorted(m['packageId'] for m in new['manifest']['externalMods']) == sorted(m['packageId'] for m in old['manifest']['externalMods']) and
-            new['artifact']['assetName'] == value['assetPrefix'] + new['manifest']['version'] + '.zip', 'UpdateScopeChanged')
+            new['state'] == 'active' and manifest_scope(new['manifest']) == manifest_scope(old['manifest']) and
+            new['artifact']['assetName'] == value['assetPrefix'] + product_version(new['manifest']) + '.zip', 'UpdateScopeChanged')
 
 
 def tag_commit(api, prefix, tag):
@@ -137,7 +136,7 @@ def discover(args, api, value, base, accepted):
     if not choices:
         return None
     _, text, release = max(choices, key=lambda x: x[0])
-    require(version(text)[0] == version(old['manifest']['version'])[0], 'UpdateVersionOutsidePolicy')
+    require(version(text)[0] == version(product_version(old['manifest']))[0], 'UpdateVersionOutsidePolicy')
     require(type(release.get('id')) is int and release['id'] > 0, 'InvalidOriginId')
     assets = release.get('assets'); require(type(assets) is list and len(assets) <= 128, 'UpdateAssetLimit')
     matches = [a for a in assets if a.get('name') == value['assetPrefix'] + text + '.zip']
@@ -157,7 +156,7 @@ def discover(args, api, value, base, accepted):
             entries = archive.infolist(); require(len(entries) <= 4096 and len({e.filename for e in entries}) == len(entries), 'ArchivePathConflict')
             entry = archive.getinfo('manifest.json'); require(0 < entry.file_size <= 512 * 1024, 'DocumentLimit')
             raw = archive.read(entry); p['manifest'] = strict_json(raw); artifact['manifestSha256'] = digest(raw)
-        require(p['manifest']['version'] == text, 'UpdateVersionRejected')
+        require(product_version(p['manifest']) == text, 'UpdateVersionRejected')
         permitted(value, base, candidate)
         try:
             candidate = catalog.project(candidate, payload, args.validator)
@@ -209,9 +208,9 @@ def scan(args, api):
             # An unfinished prior candidate must be resolved before another version is admitted.
             known = [strict_json(p)['package'] for p in packages.values() if strict_json(p)['package']['id'] == value['packageId']]
             require(all(lock_path(p) in accepted for p in known), 'PendingUpdatePublication')
-            latest = max(known, key=lambda p:version(p['manifest']['version']))
+            latest = max(known, key=lambda p:version(product_version(p['manifest'])))
             api.verify_origin(latest['artifact'])
-            result = discover(args, api, value, base, [version(p['manifest']['version']) for p in known])
+            result = discover(args, api, value, base, [version(product_version(p['manifest'])) for p in known])
             if result is None:
                 continue
             require(len(packages) < publisher.MAX_RECORDS, 'PublicationRecordLimit')
@@ -248,7 +247,7 @@ def propose(args, api):
     api.verify_origin(candidate['package']['artifact'])
     sha = commit(api, parent, expected, 'Approve source update ' + review['candidateSha256'])
     branch = 'codex/source-update-' + a['runId']; api.json(PREFIX + '/git/refs', 'POST', dict(ref='refs/heads/' + branch, sha=sha))
-    pull = api.json(PREFIX + '/pulls', 'POST', dict(head=branch, base='main', title='Update ' + candidate['package']['id'] + ' ' + candidate['package']['manifest']['version'],
+    pull = api.json(PREFIX + '/pulls', 'POST', dict(head=branch, base='main', title='Update ' + candidate['package']['id'] + ' ' + product_version(candidate['package']['manifest']),
                    body='Automatic version inside the explicit approved-source policy. Fixed candidate ' + review['candidateSha256'] + '; static ZIP/PE checks passed. No plugin code executed.'))
     pull = api.json(PREFIX + '/pulls/' + str(pull['number'])); require(pull['head']['sha'] == sha, 'AdmissionPrContentChanged')
     labels.pr_content(api, pull, expected); require(index(api) == parent, 'PublicationHeadChanged')

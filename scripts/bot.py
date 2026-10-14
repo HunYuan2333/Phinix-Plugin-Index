@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """A1 intake/static reports only. Never approves, installs or publishes candidates."""
 import argparse
+from manifest_profiles import primary as manifest_primary, product_version, scope as manifest_scope, resource_prefix
 import hashlib
 import json
 import os
@@ -69,7 +70,7 @@ def is_workshop(package):
 
 
 def revision(package):
-    return 'workshop' if is_workshop(package) else package['manifest']['version']
+    return 'workshop' if is_workshop(package) else product_version(package['manifest'])
 
 
 def workshop_static(package):
@@ -279,7 +280,7 @@ def inspect(args, package, out, api):
     try:
         api.download(package['artifact'], payload)
         validator(args, ['payload', SOURCE, str(catalog_path), str(payload), package['id'],
-                         package['manifest']['version'], str(out / 'static.json')])
+                         product_version(package['manifest']), str(out / 'static.json')])
     finally:
         payload.unlink(missing_ok=True)
     return strict_json((out / 'static.json').read_bytes())

@@ -173,7 +173,11 @@ def refresh_split(root, roots, origins=None):
     validate_origins(origins)
     validate_checkouts(roots, origins)
     content = []
-    for record in manifest['files']:
+    records=list(manifest['files'])
+    source='Common/Utils/Framework/ManagedExtensions/ManagedExtensionZip.cs'
+    if (Path(roots['common'])/source).is_file() and not any(record['source']==source for record in records):
+        records.append({'source':source,'snapshot':'Validator/Production/ManagedExtensions/ManagedExtensionZip.cs','origin':'common','sha256':'0'*64})
+    for record in records:
         role = 'common' if record['source'].startswith(SOURCE_PREFIXES[0]) else 'client'
         path_in(Path(roots[role]).resolve(), record['source'], ORIGIN_PREFIXES[role])
         raw = committed_source(Path(roots[role]).resolve(), origins[role]['commit'], record['source'])
@@ -183,6 +187,7 @@ def refresh_split(root, roots, origins=None):
         atomic(target, raw)
         record['origin'] = role
         record['sha256'] = hashlib.sha256(raw).hexdigest()
+    manifest['files'] = records
     manifest['schemaVersion'] = 2
     manifest.pop('originRepository', None)
     manifest['origins'] = origins

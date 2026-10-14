@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 """A2 exact-version approval records and metadata-only PRs. No stable publication."""
 import argparse
+from manifest_profiles import primary as manifest_primary, product_version, scope as manifest_scope, resource_prefix
 import os
 from pathlib import Path
 import re
@@ -47,7 +48,7 @@ def policy(package):
         return dict(schemaVersion=1, packageId=package['id'], mode='manual-only',
                     channel='steam-workshop', management='rimworld-mod',
                     origin=dict(workshopId=package['workshopId'], rimWorldPackageId=package['rimWorldPackageId']))
-    artifact = package['artifact']; manifest = package['manifest']
+    artifact = package['artifact']; manifest = manifest_primary(package['manifest'])
     return dict(schemaVersion=1, packageId=package['id'], mode='manual-only',
                 origin={key: artifact[key] for key in ('repository', 'repositoryId', 'ownerId')},
                 channel=package['channel'], management=package['management'],
