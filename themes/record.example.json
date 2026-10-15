@@ -1,0 +1,10 @@
+{
+  "note": "Documentation only; not a candidate. Place schema1/package envelopes under themes/packages after the author has a fixed public Release.",
+  "recordFields": ["id", "state", "management", "channel", "manifest", "artifact", "summary", "license"],
+  "management": "phinix-theme",
+  "channel": "github-release",
+  "artifactPayloadKind": "theme-zip",
+  "manifest": "Exact manifest.json object from the verified ThemePackage ZIP, not a DLL manifest.",
+  "artifact": "Same fixed repository/owner/commit/tag/release/asset identities and raw ZIP + manifest SHA256 fields as other release assets.",
+  "minimumHost": ">=0.10.3 <1.0.0"
+}

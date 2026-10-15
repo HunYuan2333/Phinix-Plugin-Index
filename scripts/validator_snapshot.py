@@ -10,9 +10,9 @@ from pathlib import Path, PurePosixPath
 import tempfile
 
 ROOT = Path(__file__).resolve().parents[1]
-SOURCE_PREFIXES = ('Common/Utils/Framework/ManagedExtensions/', 'Extensions/PluginStore/Client/')
+SOURCE_PREFIXES = ('Common/Utils/Framework/ManagedExtensions/', 'Extensions/PluginStore/Client/', 'Common/Utils/Framework/Themes/')
 ORIGIN_REPOSITORIES = {'client': 'HunYuan2333/Phinix-Rework', 'common': 'HunYuan2333/Phinix-Rework-Common'}
-ORIGIN_PREFIXES = {'client': (SOURCE_PREFIXES[1],), 'common': (SOURCE_PREFIXES[0],)}
+ORIGIN_PREFIXES = {'client': (SOURCE_PREFIXES[1],), 'common': (SOURCE_PREFIXES[0],SOURCE_PREFIXES[2])}
 
 
 def unique(pairs):

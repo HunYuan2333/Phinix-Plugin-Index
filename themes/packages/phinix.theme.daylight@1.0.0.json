@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "id": "phinix.theme.daylight",
+    "state": "active",
+    "management": "phinix-theme",
+    "channel": "github-release",
+    "manifest": {
+      "schemaVersion": 1,
+      "management": "phinix-theme",
+      "packageId": "phinix.theme.daylight",
+      "name": "Daylight · 晴昼",
+      "author": "Phinix Rework",
+      "version": "1.0.0",
+      "phinixRange": ">=0.10.3 <1.0.0",
+      "themes": [
+        {
+          "id": "main",
+          "name": "Daylight · 晴昼",
+          "path": "Themes/main.xml",
+          "schemaVersion": 2,
+          "length": 7820,
+          "sha256": "4e1ceada17f9d928db1194fa389ecdfcca76b5b80b26e036575eb795dd349b37"
+        }
+      ]
+    },
+    "artifact": {
+      "repository": "Phinix-Rework-Themes/Daylight",
+      "repositoryId": "1420146830",
+      "ownerId": "342817783",
+      "sourceCommit": "6d754bbae6f85d2d0aeef21f5adc4f3190696ab0",
+      "tag": "v1.0.0",
+      "releaseId": "413406311",
+      "assetId": "642610655",
+      "assetName": "daylight-1.0.0.zip",
+      "payloadKind": "theme-zip",
+      "sha256": "8d5bcbaf36c50fbb57f77c764aa309e68ddde6866218a5809c1f7aac4d65c3be",
+      "manifestSha256": "1b9af7e3d18ec51cd9297532c904d450b6996979a7f5dd901f89ecfa7a07d608",
+      "sizeBytes": 1807
+    },
+    "summary": "请先通过 Steam 将 Phinix Rework 主模组更新至 0.10.3 或更新版本，再安装此主题。Daylight · 晴昼，浅色配色主题。支持 RimWorld 1.6 和 1.7，安装后在主题设置中选择配色。 Update the main Phinix Rework mod to 0.10.3 or newer through Steam before installing.",
+    "license": "MIT"
+  }
+}

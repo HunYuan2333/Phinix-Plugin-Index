@@ -211,7 +211,7 @@ class GitHub:
                           data=None if data is None else encode(data)) as response:
             return strict_json(self.consume(response, MAX_JSON))
 
-    def verify_origin(self, artifact):
+    def verify_origin(self, artifact, data_only=False):
         prefix = '/repos/' + artifact['repository']
         repo = self.json(prefix)
         require(repo.get('private') is False and repo.get('visibility') == 'public' and
@@ -233,7 +233,7 @@ class GitHub:
         require(commit.get('sha') == artifact['sourceCommit'], 'SourceUnavailable')
         tree = self.json(prefix + '/git/trees/' + artifact['sourceCommit'] + '?recursive=1')
         require(tree.get('truncated') is False and isinstance(tree.get('tree'), list) and
-                any(x.get('type') == 'blob' and x.get('path', '').endswith('.cs') for x in tree['tree']), 'SourceUnavailable')
+                any(x.get('type') == 'blob' and x.get('path', '').endswith('.xml' if data_only else '.cs') for x in tree['tree']), 'SourceUnavailable')
         asset = self.json(prefix + '/releases/assets/' + artifact['assetId'])
         def matches(value):
             return str(value.get('id')) == artifact['assetId'] and value.get('name') == artifact['assetName'] and \

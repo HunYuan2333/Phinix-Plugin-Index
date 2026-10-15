@@ -219,14 +219,15 @@ def label_receipts(args, api, snapshot, records, old_locks, trigger):
     return locks, old, pending
 
 
-def release_asset(api, snapshot, raw):
-    tag = 'catalog-v3-' + snapshot
+def release_asset(api, snapshot, raw, catalog_schema=3):
+    require(catalog_schema in (3, 4), 'UnsupportedSchema')
+    tag = ('theme-catalog-v4-' if catalog_schema == 4 else 'catalog-v3-') + snapshot
     releases = api.json(PREFIX + '/releases?per_page=100')
     found = [r for r in releases if r.get('tag_name') == tag]
     require(len(found) <= 1, 'PublicationReleaseConflict')
     release = found[0] if found else api.json(PREFIX + '/releases', 'POST', dict(tag_name=tag,
         target_commitish=snapshot, name=tag, draft=True, prerelease=False,
-        body='Controlled catalog v3. Input commit: ' + snapshot + '. Catalog SHA-256: ' + digest(raw)))
+        body='Controlled catalog v' + str(catalog_schema) + '. Input commit: ' + snapshot + '. Catalog SHA-256: ' + digest(raw)))
     require(release.get('prerelease') is False and (not release.get('draft') or release.get('target_commitish') == snapshot), 'PublicationReleaseConflict')
     assets = release.get('assets', [])
     require(len(assets) <= 1 and all(a.get('name') == 'catalog.json' for a in assets), 'PublicationAssetConflict')

@@ -1,0 +1,44 @@
+{
+  "schemaVersion": 1,
+  "package": {
+    "id": "phinix.theme.tokyo-night",
+    "state": "active",
+    "management": "phinix-theme",
+    "channel": "github-release",
+    "manifest": {
+      "schemaVersion": 1,
+      "management": "phinix-theme",
+      "packageId": "phinix.theme.tokyo-night",
+      "name": "Tokyo Night · 夜航",
+      "author": "Phinix Rework",
+      "version": "1.0.0",
+      "phinixRange": ">=0.10.3 <1.0.0",
+      "themes": [
+        {
+          "id": "main",
+          "name": "Tokyo Night · 夜航",
+          "path": "Themes/main.xml",
+          "schemaVersion": 2,
+          "length": 7822,
+          "sha256": "a98bb404ae079479020bbe10ada63ff3055eea584162edd81d772d3b818a2b28"
+        }
+      ]
+    },
+    "artifact": {
+      "repository": "Phinix-Rework-Themes/Tokyo-Night",
+      "repositoryId": "1420146739",
+      "ownerId": "342817783",
+      "sourceCommit": "2da3701a30c7a713a51b6e8b0f6c3dd6cb2f79cd",
+      "tag": "v1.0.0",
+      "releaseId": "413406271",
+      "assetId": "642610533",
+      "assetName": "tokyo-night-1.0.0.zip",
+      "payloadKind": "theme-zip",
+      "sha256": "877396e014536af73f0e0b284b818a9706f4f018fdcd433133547a2f41339de7",
+      "manifestSha256": "4ba49c20c50f6014a5a45ecc90c3ebd5ed191fa68c3768193f2f7920dae65443",
+      "sizeBytes": 1838
+    },
+    "summary": "请先通过 Steam 将 Phinix Rework 主模组更新至 0.10.3 或更新版本，再安装此主题。Tokyo Night · 夜航，深色配色主题。支持 RimWorld 1.6 和 1.7，安装后在主题设置中选择配色。 Update the main Phinix Rework mod to 0.10.3 or newer through Steam before installing.",
+    "license": "MIT"
+  }
+}

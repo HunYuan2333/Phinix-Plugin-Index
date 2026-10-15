@@ -91,6 +91,12 @@
       "snapshot": "Validator/Production/ManagedExtensions/ManagedExtensionZip.cs",
       "origin": "common",
       "sha256": "77c62ed326e1da605d7d05384ac0c97e189ac07808f46e5c9b768a4c5e0fbbff"
+    },
+    {
+      "source": "Common/Utils/Framework/Themes/ThemePackage.cs",
+      "snapshot": "Validator/Production/Themes/ThemePackage.cs",
+      "sha256": "0950cd1205439d0eed2cf9c94ab94ffb646c005ae06a44882c87461ab104019c",
+      "origin": "common"
     }
   ],
   "origins": {
