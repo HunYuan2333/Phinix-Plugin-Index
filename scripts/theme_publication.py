@@ -9,7 +9,7 @@ import tempfile
 from bot import INDEX, GitHub, Rejected, require, strict_json, encode, digest
 from admission import PREFIX, REPOSITORY_ID, OWNER_ID, maintainer, index, commit
 from catalog import read, validate
-from publisher import release_asset
+from theme_release import release_assets
 
 SOURCE, BRANCH = 'phinix.themes', 'themes'
 
@@ -34,7 +34,8 @@ def build(root, snapshot, validator):
     return raw
 
 
-def revalidate(api, raw, validator):
+def revalidate(api, raw, validator, mirror_root):
+    payloads = {}
     with tempfile.TemporaryDirectory() as temporary:
         root = Path(temporary); catalog = root / 'catalog.json'; catalog.write_bytes(raw)
         for p in strict_json(raw)['packages']:
@@ -42,6 +43,12 @@ def revalidate(api, raw, validator):
             api.verify_origin(p['artifact'], data_only=True)
             archive = root / 'candidate.zip'; api.download(p['artifact'], archive)
             validate(validator, ['theme-payload', SOURCE, str(catalog), str(archive), p['id'], p['manifest']['version'], str(root / 'report.json')])
+            name = 'theme-' + p['artifact']['sha256'] + '.zip'
+            target = mirror_root / name
+            if not target.exists(): target.write_bytes(archive.read_bytes())
+            require(digest(target.read_bytes()) == p['artifact']['sha256'], 'ThemeMirrorDigestMismatch')
+            payloads[name] = target
+    return payloads
 
 
 def envelopes(snapshot, raw, artifact):
@@ -60,10 +67,15 @@ def continuity(previous, current):
 
 
 def publish(args, api):
+    with tempfile.TemporaryDirectory() as temporary:
+        return publish_with_mirrors(args, api, Path(temporary))
+
+
+def publish_with_mirrors(args, api, mirror_root):
     require(os.environ.get('GITHUB_REPOSITORY') == INDEX and os.environ.get('GITHUB_REF') == 'refs/heads/main' and os.environ.get('GITHUB_EVENT_NAME') == 'workflow_dispatch' and os.environ.get('GITHUB_RUN_ATTEMPT') == '1', 'ThemePublicationContextRejected')
     snapshot = os.environ.get('GITHUB_SHA', ''); actor = os.environ.get('GITHUB_TRIGGERING_ACTOR')
     actor_id = maintainer(api, actor); require(index(api) == snapshot, 'TrustedHeadChanged')
-    raw = build(args.root, snapshot, args.validator); revalidate(api, raw, args.validator)
+    raw = build(args.root, snapshot, args.validator); payloads = revalidate(api, raw, args.validator, mirror_root)
     path = PREFIX + '/git/ref/heads/' + BRANCH
     try:
         parent = api.json(path)['object']['sha']; exists = True
@@ -88,7 +100,7 @@ def publish(args, api):
     require(index(api) == snapshot and maintainer(api, actor, actor_id) == actor_id, 'TrustedHeadChanged')
     if args.check_only:
         print('Theme publication check passed; no remote writes.'); return
-    artifact = release_asset(api, snapshot, raw, catalog_schema=4)
+    artifact = release_assets(api, snapshot, raw, payloads)
     published, stable = envelopes(snapshot, raw, artifact)
     require(index(api) == snapshot, 'TrustedHeadChanged')
     receipt = encode(dict(schemaVersion=1, sourceId=SOURCE, inputCommit=snapshot, actor=actor, actorId=actor_id, runId=os.environ['GITHUB_RUN_ID'], catalogSha256=digest(raw)))

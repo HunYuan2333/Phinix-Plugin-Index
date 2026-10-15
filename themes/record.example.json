@@ -1,5 +1,5 @@
 {
-  "note": "Documentation only; not a candidate. Place schema1/package envelopes under themes/packages after the author has a fixed public Release.",
+  "note": "Documentation only; not a candidate. Place schema1/package envelopes under themes/packages after any third-party author has a fixed public Release and redistribution permission is reviewed. No organization allowlist.",
   "recordFields": ["id", "state", "management", "channel", "manifest", "artifact", "summary", "license"],
   "management": "phinix-theme",
   "channel": "github-release",
